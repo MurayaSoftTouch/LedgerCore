@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: policy-service
+
+server:
+  port: ${SERVER_PORT:8081}
+  shutdown: graceful
+
+ledgercore:
+  policy:
+    contract-version: 1.0.0
+    environment: ${LEDGERCORE_ENVIRONMENT:local}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  info:
+    env:
+      enabled: true
+
+info:
+  service: policy-service
+  contract-version: ${ledgercore.policy.contract-version}
+
+springdoc:
+  api-docs:
+    path: /openapi/v3/api-docs
+  swagger-ui:
+    path: /openapi/swagger-ui.html
+
+logging:
+  structured:
+    format:
+      console: ${LOG_FORMAT:ecs}
