@@ -15,12 +15,17 @@ public sealed class LedgerApiFactory(PostgresFixture postgres, bool useRealPolic
 {
     public const string TestPolicyToken = "test-ledger-policy-token-000000000000000000";
 
+    // RFC 5737 TEST-NET-1: never routed, so no local service (such as the Compose policy service on
+    // the appsettings default, localhost:8081) can answer the test host.
+    public const string UnreachablePolicyServiceBaseUrl = "http://192.0.2.1:8081";
+
     internal StubPolicyDecisionClient Policy { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseSetting("ConnectionStrings:Ledger", postgres.RuntimeConnectionString);
         builder.UseSetting("Ledger:PolicyServiceToken", TestPolicyToken);
+        builder.UseSetting("Ledger:PolicyServiceBaseUrl", UnreachablePolicyServiceBaseUrl);
         if (!useRealPolicyClient)
         {
             builder.ConfigureTestServices(services =>

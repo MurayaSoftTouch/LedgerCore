@@ -151,7 +151,8 @@ public sealed class ApprovalApiTests(PostgresFixture db) : IDisposable
     [Fact]
     public async Task PolicyOutageDegradesDependenciesButNotReadiness()
     {
-        // The test host points at a policy service that is not running.
+        // The test host points at an unroutable policy service address (LedgerApiFactory), so this
+        // holds even while the Compose stack serves a real policy service on localhost:8081.
         using var client = _factory.CreateClient();
 
         var ready = await client.GetAsync(new Uri("/health/ready", UriKind.Relative));
