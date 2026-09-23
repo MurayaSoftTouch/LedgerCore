@@ -30,7 +30,7 @@
       "format": "uuid"
     },
     "policyVersion": {
-      "description": "Identifier of the exact policy version evaluated, e.g. 'default-limits@7'. Opaque to the ledger; recorded for traceability.",
+      "description": "Identifier of the exact policy version evaluated, e.g. 'default-limits@7'. Opaque to the ledger; recorded for traceability. Since 1.0.1: 'none' when no policy version could decide (decision is then REVIEW_REQUIRED with NO_APPLICABLE_POLICY or NO_ACTIVE_POLICY_VERSION).",
       "type": "string",
       "minLength": 1,
       "maxLength": 128
@@ -40,7 +40,7 @@
       "enum": ["APPROVED", "REJECTED", "REVIEW_REQUIRED"]
     },
     "reasonCodes": {
-      "description": "Machine-readable reasons. Empty only when decision is APPROVED.",
+      "description": "Machine-readable reasons, most severe first. Empty only when decision is APPROVED. Reserved by the policy service (1.0.1): NO_APPLICABLE_POLICY, NO_ACTIVE_POLICY_VERSION, TRANSACTION_TYPE_UNSUPPORTED. All other codes come from policy rules.",
       "type": "array",
       "maxItems": 50,
       "uniqueItems": true,

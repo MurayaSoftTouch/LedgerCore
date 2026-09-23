@@ -1,0 +1,9 @@
+{
+  "contractVersion": "1.0.1",
+  "decisionId": "7a0f9e8d-6c5b-4a3f-9e2d-1c0b9a8f7e6d",
+  "transactionId": "7f3c2a8e-1d4b-4c6a-9e2f-0b5d8a1c3e7f",
+  "policyVersion": "none",
+  "decision": "REVIEW_REQUIRED",
+  "reasonCodes": ["NO_APPLICABLE_POLICY"],
+  "evaluatedAt": "2026-09-23T09:15:00.120Z"
+}
