@@ -21,7 +21,7 @@ Shared definition of done for every item: acceptance criteria covered by automat
   - No update or delete operation.
 - **Dependencies.** ADR-003.
 - **Tests.** Domain validation; API create, get, list, duplicate key, duplicate organization scope.
-- **Status.** Planned.
+- **Status.** Done (committed locally; not pushed or reviewed).
 
 ## M2-02 Policy versioning
 
@@ -37,7 +37,7 @@ Shared definition of done for every item: acceptance criteria covered by automat
   - Old versions stay queryable.
 - **Dependencies.** M2-01.
 - **Tests.** Create v1 and v2, monotonic numbering, activate, supersede, retire, forbidden transitions, historical retrieval.
-- **Status.** Planned.
+- **Status.** Done (committed locally; not pushed or reviewed).
 
 ## M2-03 Structured rule model
 
@@ -54,7 +54,7 @@ Shared definition of done for every item: acceptance criteria covered by automat
   - The DB has check constraints per rule type.
 - **Dependencies.** M2-02.
 - **Tests.** Domain validation matrix; API 400 cases; DB constraint rejects a malformed row inserted with raw SQL.
-- **Status.** Planned.
+- **Status.** Done (committed locally; not pushed or reviewed).
 
 ## M2-04 Evaluation engine
 
@@ -70,7 +70,7 @@ Shared definition of done for every item: acceptance criteria covered by automat
   - No internal failure ever yields `APPROVED`: failures return 503.
 - **Dependencies.** M2-03.
 - **Tests.** Each rule type, boundaries, multiple matches, precedence, determinism under shuffled input.
-- **Status.** Planned.
+- **Status.** Done (committed locally; not pushed or reviewed).
 
 ## M2-05 Decision persistence
 
@@ -86,7 +86,7 @@ Shared definition of done for every item: acceptance criteria covered by automat
   - A decision stays linked to its version after a newer version is activated.
 - **Dependencies.** M2-04.
 - **Tests.** Historical determinism test; raw-SQL immutability tests.
-- **Status.** Planned.
+- **Status.** Done (committed locally; not pushed or reviewed).
 
 ## M2-06 Policy API
 
@@ -100,7 +100,7 @@ Shared definition of done for every item: acceptance criteria covered by automat
   - Management writes require `X-Actor-Id`.
 - **Dependencies.** M2-02 to M2-05.
 - **Tests.** MockMvc API tests against PostgreSQL.
-- **Status.** Planned.
+- **Status.** Done (committed locally; not pushed or reviewed).
 
 ## M2-07 Contract compatibility
 
@@ -118,7 +118,7 @@ Shared definition of done for every item: acceptance criteria covered by automat
   - `contracts/validate.sh` passes.
 - **Dependencies.** M2-06.
 - **Tests.** Contract test class using the repository schemas (networknt JSON Schema 2020-12) over real HTTP serialization.
-- **Status.** Planned.
+- **Status.** Done (committed locally; not pushed or reviewed).
 
 ## M2-08 PostgreSQL integration testing
 
@@ -127,7 +127,7 @@ Shared definition of done for every item: acceptance criteria covered by automat
 - **Acceptance criteria.** Every database-relevant case runs against real PostgreSQL.
 - **Dependencies.** M2-05.
 - **Tests.** This item is the tests.
-- **Status.** Planned.
+- **Status.** Done (committed locally; not pushed or reviewed).
 
 ## M2-09 Concurrency and activation safety
 
@@ -142,7 +142,7 @@ Shared definition of done for every item: acceptance criteria covered by automat
   - Conflicting duplicates → 409; the stored decision is unchanged.
 - **Dependencies.** M2-02, M2-05.
 - **Tests.** Real concurrent connections with latch-started threads, and a `pg_locks` wait probe instead of sleeps.
-- **Status.** Planned.
+- **Status.** Done (committed locally; not pushed or reviewed).
 
 ## M2-10 Documentation and verification
 
@@ -153,4 +153,4 @@ Shared definition of done for every item: acceptance criteria covered by automat
   - The security boundary is stated honestly.
 - **Dependencies.** All of the above.
 - **Tests.** Quality gates: Spring `clean spotless:check verify`, `contracts/validate.sh`, and the .NET build and tests (unchanged service).
-- **Status.** Planned.
+- **Status.** Done (committed locally; not pushed or reviewed).

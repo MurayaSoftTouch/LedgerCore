@@ -37,4 +37,4 @@
 | ledger-api | `GET /health/live` | `GET /health/ready` (database check) | `GET /openapi/v1.json` (Development, or `Ledger:ExposeOpenApi=true`) |
 | policy-service | `GET /actuator/health/liveness` | `GET /actuator/health/readiness` | `GET /openapi/v3/api-docs` |
 
-The policy service also exposes `GET /actuator/info`, which reports the contract version. The ledger's business API is described in [ledger-domain.md](ledger-domain.md#http-api-milestone-1).
+The policy service also exposes `GET /actuator/info`, which reports the contract version. The ledger's business API is described in [ledger-domain.md](ledger-domain.md#http-api-milestone-1); the policy service's API, including contract v1 `POST /v1/policy-decisions`, is in [policy-engine.md](policy-engine.md#api).
