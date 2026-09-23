@@ -1,0 +1,29 @@
+# Local development infrastructure. Copy .env.example to .env first.
+# Services run on the host in Milestone 0 (see README); containerising them is Milestone 3 scope.
+name: ledgercore
+
+services:
+  postgres:
+    image: postgres:18.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:?set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set in .env}
+      POSTGRES_DB: postgres
+      LEDGER_DB_PASSWORD: ${LEDGER_DB_PASSWORD:?set in .env}
+      POLICY_DB_PASSWORD: ${POLICY_DB_PASSWORD:?set in .env}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./infra/docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # Ready only once the init script has created both application databases.
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d policy && pg_isready -U \"$${POSTGRES_USER}\" -d ledger"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  postgres-data:
