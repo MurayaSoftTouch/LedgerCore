@@ -41,6 +41,7 @@ jobs:
         run: dotnet format --verify-no-changes --no-restore
       - name: Build
         run: dotnet build --configuration Release --no-restore
+      # Integration tests start PostgreSQL 18.6 through Testcontainers (Docker is available on ubuntu-latest).
       - name: Test
         run: dotnet test --configuration Release --no-build --logger "trx;LogFileName=results.trx"
 

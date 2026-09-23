@@ -23,7 +23,7 @@ Shared definition of done for every item: the acceptance criteria are covered by
   - Identity fields are immutable (trigger).
 - **Dependencies.** ADR-002.
 - **Tests.** Domain unit tests; API tests (create, duplicate code, invalid type); posting to an inactive account against PostgreSQL.
-- **Status.** Planned.
+- **Status.** Done (committed locally; not pushed or reviewed).
 
 ## M1-02 Journal and journal-entry model
 
@@ -36,7 +36,7 @@ Shared definition of done for every item: the acceptance criteria are covered by
   - No speculative columns.
 - **Dependencies.** M1-01.
 - **Tests.** Domain tests for valid draft, invalid amount, invalid or foreign account, currency mismatch.
-- **Status.** Planned.
+- **Status.** Done (committed locally; not pushed or reviewed).
 
 ## M1-03 Double-entry validation
 
@@ -47,7 +47,7 @@ Shared definition of done for every item: the acceptance criteria are covered by
   - The trigger rejects an unbalanced post even when the application is bypassed.
 - **Dependencies.** M1-02.
 - **Tests.** Cases for one-cent imbalance, multi-entry, large amounts, reordered entries, duplicate account, many debits with one credit, one debit with many credits, and a raw-SQL bypass attempt.
-- **Status.** Planned.
+- **Status.** Done (committed locally; not pushed or reviewed).
 
 ## M1-04 Journal lifecycle
 
@@ -63,7 +63,7 @@ Shared definition of done for every item: the acceptance criteria are covered by
   - Timeouts and failures aren't modelled as rejection.
 - **Dependencies.** M1-02.
 - **Tests.** A transition matrix in the domain; illegal transitions rejected by the DB trigger.
-- **Status.** Planned.
+- **Status.** Done (committed locally; not pushed or reviewed).
 
 ## M1-05 Posting transaction
 
@@ -80,7 +80,7 @@ Shared definition of done for every item: the acceptance criteria are covered by
   - A failure injected before commit leaves no partial state.
 - **Dependencies.** M1-03, M1-04.
 - **Tests.** Real concurrent connections; commit-time fault injection.
-- **Status.** Planned.
+- **Status.** Done (committed locally; not pushed or reviewed).
 
 ## M1-06 Reversal model
 
@@ -94,7 +94,7 @@ Shared definition of done for every item: the acceptance criteria are covered by
   - The DB verifies the mirror property.
 - **Dependencies.** M1-05.
 - **Tests.** Successful reversal, exact-opposite entries, original unchanged, double reversal rejected, concurrent reversal.
-- **Status.** Planned.
+- **Status.** Done (committed locally; not pushed or reviewed).
 
 ## M1-07 Persistence and migrations
 
@@ -110,7 +110,7 @@ Shared definition of done for every item: the acceptance criteria are covered by
   - The app connects as `ledger_runtime`.
 - **Dependencies.** M1-01 to M1-06.
 - **Tests.** The integration fixture applies the migrations as the owner role and runs everything as the runtime role.
-- **Status.** Planned.
+- **Status.** Done (committed locally; not pushed or reviewed).
 
 ## M1-08 Integration testing
 
@@ -121,7 +121,7 @@ Shared definition of done for every item: the acceptance criteria are covered by
   - The ledger reconstruction proof passes.
 - **Dependencies.** M1-07.
 - **Tests.** This item is the tests.
-- **Status.** Planned.
+- **Status.** Done (committed locally; not pushed or reviewed).
 
 ## M1-09 Documentation and verification
 
@@ -132,4 +132,4 @@ Shared definition of done for every item: the acceptance criteria are covered by
   - Protections are attributed correctly (domain vs DB trigger vs DB privilege).
 - **Dependencies.** All of the above.
 - **Tests.** Quality gates: `dotnet restore`, `build`, `test`, `format --verify-no-changes`, Spring `verify`, `contracts/validate.sh`.
-- **Status.** Planned.
+- **Status.** Done (committed locally; not pushed or reviewed).

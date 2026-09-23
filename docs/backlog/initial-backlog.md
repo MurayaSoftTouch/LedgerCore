@@ -12,6 +12,8 @@ Each item below uses the feature or task issue template. "Owner" is the planned 
 
 ## Ledger domain (Milestones 1 and 4, @LMichy1)
 
+> Milestone 1 status: L1–L3 and the reversal model are implemented on `feat/m1-ledger-domain`. See [milestone-1.md](milestone-1.md) (M1-01 to M1-09). L4 idempotency keys and L5 hardening remain Milestone 4 scope.
+
 ### L1. Define account model
 - **Labels:** `type:feature` `area:ledger` `area:database` `priority:p0`
 - **Problem:** No chart of accounts exists, so journals have nothing to post against.
