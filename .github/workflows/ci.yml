@@ -84,23 +84,59 @@ jobs:
       - name: Validate OpenAPI, schemas and examples
         run: ./contracts/validate.sh
 
-  infra:
-    name: postgres (docker compose)
+  database-isolation:
+    name: database isolation (roles)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - name: Start PostgreSQL
+      - name: Start PostgreSQL only
         run: |
           cp .env.example .env
-          docker compose up -d --wait --wait-timeout 120
+          docker compose up -d --wait --wait-timeout 120 postgres
       - name: Verify database isolation
         run: ./infra/docker/postgres/verify-isolation.sh
       - name: Logs on failure
         if: failure()
         run: docker compose logs postgres
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  integration:
+    name: integration (ledger + policy + PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: [ledger-api, policy-service, contracts]
+    env:
+      DOTNET_NOLOGO: "1"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: tests/integration/global.json
+      - uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-integration-${{ runner.os }}-${{ hashFiles('tests/integration/**/*.csproj') }}
+          restore-keys: nuget-integration-${{ runner.os }}-
+      # Testcontainers builds both service images from their Dockerfiles, starts PostgreSQL with the
+      # repository init script, and puts Toxiproxy between the ledger and the policy service.
+      - name: Multi-service tests
+        working-directory: tests/integration
+        run: dotnet test --logger "console;verbosity=normal"
+      - name: Compose smoke test
+        run: |
+          cp .env.example .env
+          ./tests/integration/compose-smoke.sh --build
+      - name: Compose logs on failure
+        if: failure()
+        run: docker compose logs --no-color ledger-migrate policy-service ledger-api postgres
       - name: Tear down
         if: always()
         run: docker compose down -v
