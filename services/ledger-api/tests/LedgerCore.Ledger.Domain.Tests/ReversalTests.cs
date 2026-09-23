@@ -28,12 +28,17 @@ public sealed class ReversalTests
     }
 
     [Fact]
-    public void ReversalIsBalancedAndSubmitted()
+    public void ReversalIsASealedBalancedDraftReadyToSubmit()
     {
         var reversal = Journal.CreateReversal(PostedOriginal(), _ledger.Accounts, null, "alice", TestLedger.Now);
 
-        Assert.Equal(JournalStatus.PendingApproval, reversal.Status);
+        Assert.Equal(JournalStatus.Draft, reversal.Status);
         Assert.True(DoubleEntry.Totals(reversal.Entries).IsBalanced);
+        DomainAssert.Fails(
+            "REVERSAL_ENTRIES_FIXED", () => reversal.AddEntry(_ledger.Cash, Debit, _ledger.Amount(1m), null));
+
+        reversal.Submit("alice", TestLedger.Now);
+        Assert.Equal(JournalStatus.PendingApproval, reversal.Status);
     }
 
     [Fact]
@@ -52,6 +57,7 @@ public sealed class ReversalTests
     {
         var original = PostedOriginal();
         var reversal = Journal.CreateReversal(original, _ledger.Accounts, null, "alice", TestLedger.Now);
+        reversal.Submit("alice", TestLedger.Now);
         reversal.Approve("bob", TestLedger.Now);
         reversal.Post(_ledger.Accounts, "carol", TestLedger.Now);
 
@@ -93,6 +99,7 @@ public sealed class ReversalTests
     public void ReversalCannotBeReversed()
     {
         var reversal = Journal.CreateReversal(PostedOriginal(), _ledger.Accounts, null, "alice", TestLedger.Now);
+        reversal.Submit("alice", TestLedger.Now);
         reversal.Approve("bob", TestLedger.Now);
         reversal.Post(_ledger.Accounts, "carol", TestLedger.Now);
 

@@ -14,6 +14,8 @@ public sealed class Journal
 
     private readonly List<JournalEntry> _entries = [];
 
+    private bool _entriesSealed;
+
     private Journal()
     {
     }
@@ -85,9 +87,13 @@ public sealed class Journal
 
     /// <summary>
     /// Creates the reversal of a posted journal: every entry mirrored with its direction swapped,
-    /// in the same order, and submitted immediately (the content is derived, never edited).
-    /// The original is not modified.
+    /// in the same order. The original is not modified.
     /// </summary>
+    /// <remarks>
+    /// The reversal is returned as a <em>sealed</em> draft: its entries are derived from the original and
+    /// no further entries can be added. The caller must persist it and call <see cref="Submit"/> in the
+    /// same database transaction, so the draft is never visible to anyone else (ADR-006).
+    /// </remarks>
     public static Journal CreateReversal(
         Journal original,
         IReadOnlyDictionary<Guid, Account> accounts,
@@ -132,7 +138,7 @@ public sealed class Journal
                 entry.Memo);
         }
 
-        reversal.Submit(actor, now);
+        reversal._entriesSealed = true;
         return reversal;
     }
 
@@ -140,6 +146,12 @@ public sealed class Journal
     {
         ArgumentNullException.ThrowIfNull(account);
         RequireStatus(JournalStatus.Draft, "add entries");
+
+        if (_entriesSealed)
+        {
+            throw new LedgerDomainException(
+                DomainErrorKind.InvalidState, "REVERSAL_ENTRIES_FIXED", "Reversal entries are derived from the original journal.");
+        }
 
         if (_entries.Count >= MaximumEntries)
         {
