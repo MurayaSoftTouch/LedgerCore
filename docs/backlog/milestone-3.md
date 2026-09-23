@@ -87,7 +87,10 @@ Shared definition of done:
   - An unreachable policy service → `PENDING_APPROVAL`, and posting is refused.
 - **Dependencies.** M3-02, M3-03.
 - **Tests.** Client unit tests; a multi-service test with Toxiproxy cutting the response.
-- **Status.** Done at the ledger level: client tests, plus PostgreSQL tests with a stubbed policy service, including the lost-response case. The Toxiproxy multi-service scenario is pending with M3-09.
+- **Status.** Done and verified locally on 2026-09-23:
+  - client tests, including retries resending the same transaction;
+  - PostgreSQL tests with a stubbed policy service, including the lost-response case;
+  - the Toxiproxy multi-service scenarios for an unreachable policy service and a lost response.
 
 ## M3-06 Runtime database-role hardening
 
@@ -131,7 +134,7 @@ Shared definition of done:
   - Credentials, payloads and connection strings are never logged.
 - **Dependencies.** M3-02.
 - **Tests.** Middleware tests; the stub client receives the id; a multi-service test reads the id from the policy decision.
-- **Status.** Done for the ledger (middleware, forwarding, evidence). The check that the id appears in both services' logs is pending with M3-09. Compose smoke confirmed it reaches the policy database.
+- **Status.** Done and verified locally on 2026-09-23. `CorrelationIdSpansBothServices` finds the id in the ledger response, both databases and both services' logs. `CredentialsNeverAppearInEitherServiceLog` passes. Compose smoke confirmed the id reaches the policy service.
 
 ## M3-09 Full integration tests
 
@@ -148,7 +151,9 @@ Shared definition of done:
   - cross-database boundary.
 - **Dependencies.** M3-03 to M3-08.
 - **Tests.** This item is the tests.
-- **Status.** Implemented; **verification pending**. The multi-service suite has not yet completed a run: the first run was interrupted by the D: disk emergency, and heavy runs stay blocked until D: has at least 15 GB free.
+- **Status.** Done and verified locally on 2026-09-23: 13 of 13 tests pass against images built from the repository.
+  - Covered here: approved, rejected, review, unavailable, ambiguous outcome, duplicate and concurrent submit, contract mismatch, and the cross-database boundary.
+  - Covered by the ledger PostgreSQL tests instead: the approval-vs-post race (`PostingCannotOvertakeAnInFlightApproval`).
 
 ## M3-10 CI and documentation
 
@@ -163,4 +168,27 @@ Shared definition of done:
   - No claim that remote CI passed.
 - **Dependencies.** All of the above.
 - **Tests.** Quality gates.
-- **Status.** Implemented; CI has never run on GitHub, and the multi-service verification it depends on is pending (see M3-09).
+- **Status.** Implemented; verified locally only.
+  - actionlint 1.7.12 is clean, and every job's commands pass locally.
+  - The workflow has **never run on GitHub**, so remote CI is unverified.
+
+---
+
+## Verification record (local, 2026-09-23)
+
+Run on the developer machine (WSL2, Docker 29.1.3). **Remote CI has not run.**
+
+| Gate | Result |
+| --- | --- |
+| Multi-service suite (`tests/integration`) | 13 / 13 passed |
+| Compose smoke (`compose-smoke.sh`) | passed, against images built from this branch |
+| Ledger domain tests | 68 / 68 passed |
+| Ledger API tests (PostgreSQL, policy client, consumer contract) | 188 / 188 passed; build 0 warnings; `dotnet format` clean |
+| Policy service (`./mvnw clean spotless:check verify`) | 235 / 235 passed; Spotless clean |
+| Contract (`contracts/validate.sh`, 1.1.0) | OpenAPI lint clean; 2 schemas compile; 7 / 7 examples as expected |
+| Database isolation (`verify-isolation.sh`) | 10 / 10 passed |
+| actionlint | clean |
+
+Defects found by this run (fixed in test code only; no production change):
+- `PolicyOutageDegradesDependenciesButNotReadiness` depended on nothing listening at `localhost:8081`. It failed whenever the Compose stack was up. The test host now uses an unroutable address.
+- The client tests didn't check that retries resend the same transaction, or that `REJECTED` and contract-violating responses are sent only once. Those tests are now added.

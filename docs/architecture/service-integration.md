@@ -160,7 +160,7 @@ docker compose up -d --wait postgres          # database only, services on the h
 | Approval (PostgreSQL) | `…/PolicyApprovalTests.cs`, `ApprovalApiTests.cs` | outcome mapping, evidence, concurrency, the ambiguous outcome, the DB refusing approval without evidence |
 | Outbox | `…/OutboxTests.cs` | atomicity, one event per posting, immutability |
 | Policy runtime role | `services/policy-service/.../RuntimeRoleTests.java` | the privilege boundary |
-| Multi-service | `tests/integration/` | the real containers, including every scenario above |
+| Multi-service | `tests/integration/` | the real containers: approved, rejected, review, unreachable policy, lost response, duplicate and concurrent requests, contract violation, correlation in both logs, no credentials in logs, service authentication, the database boundary, dependency health. It runs with a 5000 ms budget and 2000 ms attempts so a cold JVM isn't mistaken for an outage; the production 2000/800 ms values are proven by the client resilience tests |
 | Compose smoke | `tests/integration/compose-smoke.sh` | the Compose wiring |
 
 ## Known limitations
