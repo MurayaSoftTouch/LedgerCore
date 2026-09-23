@@ -12,6 +12,7 @@ internal sealed class JournalConfiguration : IEntityTypeConfiguration<Journal>
         builder.ToTable("journals", t =>
         {
             t.HasCheckConstraint("ck_journals_status", $"status IN ({EnumText.SqlList<JournalStatus>()})");
+            t.HasCheckConstraint("ck_journals_transaction_type", $"transaction_type IN ({EnumText.SqlList<JournalType>()})");
             t.HasCheckConstraint("ck_journals_not_self_reversal", "reverses_journal_id IS NULL OR reverses_journal_id <> id");
 
             // Lifecycle columns are present exactly when the state implies them (ADR-006).
@@ -37,6 +38,7 @@ internal sealed class JournalConfiguration : IEntityTypeConfiguration<Journal>
         builder.Property(j => j.Id).ValueGeneratedNever();
         builder.Property(j => j.Currency).HasConversion(CurrencyConversion.Converter).HasColumnType("character(3)");
         builder.Property(j => j.Description).HasMaxLength(500);
+        builder.Property(j => j.Type).HasColumnName("transaction_type").HasConversion(EnumText.Converter<JournalType>()).HasMaxLength(16);
         builder.Property(j => j.ExternalReference).HasMaxLength(128);
         builder.Property(j => j.Status).HasConversion(EnumText.Converter<JournalStatus>()).HasMaxLength(24);
         builder.Property(j => j.CreatedBy).HasMaxLength(128);

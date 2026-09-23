@@ -1,3 +1,5 @@
+using LedgerCore.Ledger.Api.Application;
+using LedgerCore.Ledger.Api.Integration.Policy;
 using LedgerCore.Ledger.Api.Persistence;
 using LedgerCore.Ledger.Domain;
 using Microsoft.AspNetCore.Diagnostics;
@@ -27,6 +29,7 @@ internal sealed partial class LedgerExceptionHandler(IProblemDetailsService prob
         var mapped = exception switch
         {
             LedgerDomainException domain => new Problem(StatusFor(domain.Kind), domain.Code, domain.Message),
+            PolicyApprovalUnavailableException policy => FromPolicyFailure(policy.Failure),
             // Malformed JSON, unknown enum values, JSON numbers where strings are required.
             BadHttpRequestException bad => new Problem(bad.StatusCode, "REQUEST_INVALID", bad.Message),
             _ when FindPostgres(exception) is { } pg => FromPostgres(pg),
@@ -60,6 +63,15 @@ internal sealed partial class LedgerExceptionHandler(IProblemDetailsService prob
         DomainErrorKind.RuleViolation => StatusCodes.Status422UnprocessableEntity,
         DomainErrorKind.InvalidState or DomainErrorKind.Conflict => StatusCodes.Status409Conflict,
         _ => StatusCodes.Status500InternalServerError,
+    };
+
+    /// <summary>No trustworthy decision was obtained; the journal is unchanged (still PENDING_APPROVAL).</summary>
+    private static Problem FromPolicyFailure(PolicyFailureKind failure) => failure switch
+    {
+        PolicyFailureKind.Timeout => new(StatusCodes.Status503ServiceUnavailable, "POLICY_TIMEOUT", "The policy service did not answer in time. The journal remains PENDING_APPROVAL; retry later."),
+        PolicyFailureKind.Unavailable => new(StatusCodes.Status503ServiceUnavailable, "POLICY_UNAVAILABLE", "The policy service is unavailable. The journal remains PENDING_APPROVAL; retry later."),
+        PolicyFailureKind.Conflict => new(StatusCodes.Status409Conflict, "POLICY_CONFLICT", "The policy service already decided this transaction with different inputs."),
+        _ => new(StatusCodes.Status502BadGateway, "POLICY_" + EnumText.ToText(failure), "The policy service response could not be trusted. The journal remains PENDING_APPROVAL."),
     };
 
     private static PostgresException? FindPostgres(Exception exception) => exception switch

@@ -15,6 +15,9 @@ internal sealed class LedgerDbContext(DbContextOptions<LedgerDbContext> options)
 
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
 
+    /// <summary>Policy decisions received for journals (append-only approval evidence).</summary>
+    public DbSet<JournalPolicyDecision> JournalPolicyDecisions => Set<JournalPolicyDecision>();
+
     /// <summary>Written only by a database trigger; read-only to the application.</summary>
     public DbSet<JournalStatusTransition> JournalStatusTransitions => Set<JournalStatusTransition>();
 

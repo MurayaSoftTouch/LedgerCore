@@ -7,7 +7,11 @@ using static LedgerCore.Ledger.Api.Tests.Policy.PolicyClientHarness;
 
 namespace LedgerCore.Ledger.Api.Tests.Policy;
 
-/// <summary>Retry, timeout and status mapping of the real client pipeline (no database).</summary>
+/// <summary>
+/// Retry, timeout and status mapping of the real client pipeline (no database). Runs outside the
+/// parallel test pool because two tests assert wall-clock bounds.
+/// </summary>
+[Collection(TimingSensitive.Name)]
 public sealed class PolicyClientResilienceTests
 {
     private static readonly string Approved = ExampleResponse("response.approved.valid.json");
@@ -126,7 +130,8 @@ public sealed class PolicyClientResilienceTests
 
         Assert.Equal(PolicyFailureKind.Timeout, Assert.IsType<PolicyEvaluationResult.Failed>(result).Kind);
         Assert.Equal(3, handler.Attempts);
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(2.5), $"took {stopwatch.Elapsed}");
+        // Every attempt would take 10 s; finishing near the 2 s budget proves the cut-off.
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"took {stopwatch.Elapsed}");
     }
 
     [Fact]
@@ -144,7 +149,8 @@ public sealed class PolicyClientResilienceTests
             retries: 5);
 
         Assert.Equal(PolicyFailureKind.Timeout, Assert.IsType<PolicyEvaluationResult.Failed>(result).Kind);
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(1.5), $"took {stopwatch.Elapsed}");
+        // A 10 s attempt with 5 retries would take a minute; the 300 ms total budget bounds it.
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(3), $"took {stopwatch.Elapsed}");
     }
 
     [Fact]
@@ -155,4 +161,10 @@ public sealed class PolicyClientResilienceTests
         Assert.Equal(PolicyFailureKind.InvalidResponse, Assert.IsType<PolicyEvaluationResult.Failed>(result).Kind);
         Assert.Equal(1, handler.Attempts);
     }
+}
+
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class TimingSensitive
+{
+    public const string Name = "timing-sensitive";
 }

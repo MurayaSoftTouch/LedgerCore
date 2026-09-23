@@ -23,7 +23,7 @@ public sealed class PostingTests(PostgresFixture db)
             connection,
             "SELECT string_agg(coalesce(from_status, '∅') || '>' || to_status || '@' || actor, ' ' ORDER BY id) FROM journal_status_transitions WHERE journal_id = $1",
             id);
-        Assert.Equal("∅>DRAFT@tester DRAFT>PENDING_APPROVAL@submitter PENDING_APPROVAL>APPROVED@test-approver APPROVED>POSTED@poster", transitions);
+        Assert.Equal("∅>DRAFT@tester DRAFT>PENDING_APPROVAL@submitter PENDING_APPROVAL>APPROVED@policy-service APPROVED>POSTED@poster", transitions);
     }
 
     [Fact]

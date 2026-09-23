@@ -10,7 +10,8 @@ namespace LedgerCore.Ledger.Api.Application;
 /// <param name="ReversedByJournalId">
 /// The posted reversal of this journal, if any. "Reversed" is derived from this, never stored (ADR-006).
 /// </param>
-internal sealed record JournalView(Journal Journal, Guid? ReversedByJournalId);
+/// <param name="PolicyDecision">The policy decision recorded for the journal, if any (ADR-012).</param>
+internal sealed record JournalView(Journal Journal, Guid? ReversedByJournalId, JournalPolicyDecision? PolicyDecision = null);
 
 internal sealed class LedgerQueries(LedgerDbContext db)
 {
@@ -38,6 +39,8 @@ internal sealed class LedgerQueries(LedgerDbContext db)
             .Select(j => (Guid?)j.Id)
             .SingleOrDefaultAsync(ct);
 
-        return new JournalView(journal, reversedBy);
+        var decision = await db.JournalPolicyDecisions.AsNoTracking().SingleOrDefaultAsync(d => d.JournalId == journalId, ct);
+
+        return new JournalView(journal, reversedBy, decision);
     }
 }

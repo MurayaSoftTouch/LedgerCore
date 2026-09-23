@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using LedgerCore.Ledger.Api.Application;
+using LedgerCore.Ledger.Api.Integration.Policy;
+using LedgerCore.Ledger.Api.Persistence;
 using LedgerCore.Ledger.Domain;
 using LedgerCore.Ledger.Domain.Accounts;
 using LedgerCore.Ledger.Domain.Journals;
@@ -32,7 +34,11 @@ internal sealed record AccountResponse(
         new(a.Id, a.LedgerId, a.Code, a.Name, a.Type, a.Currency.Code, a.IsActive, a.CreatedAt, a.DeactivatedAt);
 }
 
-internal sealed record CreateJournalRequest(string Currency, string Description, string? ExternalReference);
+/// <param name="Currency">ISO 4217 code; every entry must use an account in this currency.</param>
+/// <param name="Description">What the journal records.</param>
+/// <param name="ExternalReference">Optional caller reference, unique per ledger.</param>
+/// <param name="TransactionType">Required business classification sent to policy (<c>PAYMENT</c>, <c>TRANSFER</c>, <c>ADJUSTMENT</c>, <c>FEE</c>).</param>
+internal sealed record CreateJournalRequest(string Currency, string Description, string? ExternalReference, JournalType? TransactionType);
 
 /// <param name="AccountId">Account in the same ledger and currency as the journal.</param>
 /// <param name="Direction"><c>DEBIT</c> or <c>CREDIT</c>.</param>
@@ -47,10 +53,25 @@ internal sealed record JournalEntryResponse(
 
 internal sealed record JournalTotalsResponse(string Debits, string Credits, bool Balanced);
 
+/// <summary>The policy decision recorded as approval evidence (ADR-012).</summary>
+internal sealed record PolicyDecisionResponse(
+    Guid DecisionId,
+    string PolicyVersion,
+    string Decision,
+    IReadOnlyList<string> ReasonCodes,
+    DateTimeOffset EvaluatedAt,
+    string ContractVersion,
+    DateTimeOffset ReceivedAt)
+{
+    public static PolicyDecisionResponse From(JournalPolicyDecision d) => new(
+        d.DecisionId, d.PolicyVersion, EnumText.ToText(d.Decision), d.ReasonCodes, d.EvaluatedAt, d.ContractVersion, d.ReceivedAt);
+}
+
 internal sealed record JournalResponse(
     Guid Id,
     Guid LedgerId,
     string Currency,
+    JournalType TransactionType,
     string Description,
     string? ExternalReference,
     JournalStatus Status,
@@ -69,9 +90,17 @@ internal sealed record JournalResponse(
     string? RejectedBy,
     string? RejectionReason,
     DateTimeOffset? PostedAt,
-    string? PostedBy)
+    string? PostedBy,
+    PolicyDecisionResponse? PolicyDecision,
+    bool ManualReviewRequired,
+    string? ApprovalFailure)
 {
-    public static JournalResponse From(Journal j, Guid? reversedBy = null)
+    /// <param name="j">The journal.</param>
+    /// <param name="reversedBy">The posted reversal of this journal, if any.</param>
+    /// <param name="decision">The policy decision recorded for it, if any.</param>
+    /// <param name="failure">Set on command responses when no policy decision could be obtained this time.</param>
+    public static JournalResponse From(
+        Journal j, Guid? reversedBy = null, JournalPolicyDecision? decision = null, PolicyFailureKind? failure = null)
     {
         var totals = DoubleEntry.Totals(j.Entries);
         var minorUnits = j.Currency.MinorUnits;
@@ -79,6 +108,7 @@ internal sealed record JournalResponse(
             j.Id,
             j.LedgerId,
             j.Currency.Code,
+            j.Type,
             j.Description,
             j.ExternalReference,
             j.Status,
@@ -99,10 +129,15 @@ internal sealed record JournalResponse(
             j.RejectedBy,
             j.RejectionReason,
             j.PostedAt,
-            j.PostedBy);
+            j.PostedBy,
+            decision is null ? null : PolicyDecisionResponse.From(decision),
+            j.Status == JournalStatus.PendingApproval && decision?.Decision == PolicyDecisionValue.ReviewRequired,
+            failure is null ? null : EnumText.ToText(failure.Value));
     }
 
-    public static JournalResponse From(JournalView view) => From(view.Journal, view.ReversedByJournalId);
+    public static JournalResponse From(JournalView view) => From(view.Journal, view.ReversedByJournalId, view.PolicyDecision);
+
+    public static JournalResponse From(ApprovalOutcome outcome) => From(outcome.Journal, null, outcome.Evidence, outcome.Failure);
 }
 
 /// <summary>Amounts cross the API as decimal strings, matching the policy contract (ADR-005).</summary>

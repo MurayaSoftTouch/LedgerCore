@@ -123,4 +123,18 @@ public sealed class ReversalTests
         j.PostedBy,
         j.ReversesJournalId,
         string.Join('|', j.Entries.Select(e => $"{e.Id}:{e.AccountId}:{e.Direction}:{e.Amount}")));
+
+    [Fact]
+    public void ReversalIsTypedReversalAndDraftsCannotClaimThatType()
+    {
+        var reversal = Journal.CreateReversal(PostedOriginal(), _ledger.Accounts, null, "alice", TestLedger.Now);
+
+        Assert.Equal(JournalType.Reversal, reversal.Type);
+        DomainAssert.Fails(
+            "JOURNAL_TYPE_RESERVED",
+            () => Journal.CreateDraft(_ledger.LedgerId, _ledger.Currency, JournalType.Reversal, "x", null, "a", TestLedger.Now));
+        DomainAssert.Fails(
+            "ENUM_INVALID",
+            () => Journal.CreateDraft(_ledger.LedgerId, _ledger.Currency, (JournalType)42, "x", null, "a", TestLedger.Now));
+    }
 }

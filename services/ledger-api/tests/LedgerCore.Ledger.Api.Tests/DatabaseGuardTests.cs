@@ -131,8 +131,8 @@ public sealed class DatabaseGuardTests(PostgresFixture db)
 
         var error = await Sql.FailsAsync(
             runtime,
-            "INSERT INTO journals (id, ledger_id, currency, description, status, created_at, created_by, submitted_at, submitted_by, approved_at, approved_by, posted_at, posted_by) " +
-            "VALUES (gen_random_uuid(), $1, 'KES', 'forged', 'POSTED', now(), 'x', now(), 'x', now(), 'x', now(), 'x')",
+            "INSERT INTO journals (id, ledger_id, currency, transaction_type, description, status, created_at, created_by, submitted_at, submitted_by, approved_at, approved_by, posted_at, posted_by) " +
+            "VALUES (gen_random_uuid(), $1, 'KES', 'PAYMENT', 'forged', 'POSTED', now(), 'x', now(), 'x', now(), 'x', now(), 'x')",
             s.LedgerId);
 
         AssertGuard(error, "JOURNAL_INVALID_STATE");
@@ -266,8 +266,8 @@ public sealed class DatabaseGuardTests(PostgresFixture db)
 
         await Sql.ExecuteAsync(
             runtime,
-            "INSERT INTO journals (id, ledger_id, currency, description, status, reverses_journal_id, created_at, created_by) " +
-            "VALUES ($1, $2, 'KES', 'tampered', 'DRAFT', $3, now(), 'sql')",
+            "INSERT INTO journals (id, ledger_id, currency, transaction_type, description, status, reverses_journal_id, created_at, created_by) " +
+            "VALUES ($1, $2, 'KES', 'REVERSAL', 'tampered', 'DRAFT', $3, now(), 'sql')",
             reversal, s.LedgerId, original);
         // Balanced, but not the mirror of the original (which was Rent Dr 250 / Cash Cr 250).
         foreach (var (line, account, direction) in new[] { (1, s.Cash, "DEBIT"), (2, s.Revenue, "CREDIT") })
@@ -294,8 +294,8 @@ public sealed class DatabaseGuardTests(PostgresFixture db)
 
         await Sql.ExecuteAsync(
             runtime,
-            "INSERT INTO journals (id, ledger_id, currency, description, status, reverses_journal_id, created_at, created_by) " +
-            "VALUES (gen_random_uuid(), $1, 'KES', 'stuck', 'DRAFT', $2, now(), 'sql')",
+            "INSERT INTO journals (id, ledger_id, currency, transaction_type, description, status, reverses_journal_id, created_at, created_by) " +
+            "VALUES (gen_random_uuid(), $1, 'KES', 'REVERSAL', 'stuck', 'DRAFT', $2, now(), 'sql')",
             s.LedgerId, original);
 
         var error = await Assert.ThrowsAsync<PostgresException>(() => tx.CommitAsync());

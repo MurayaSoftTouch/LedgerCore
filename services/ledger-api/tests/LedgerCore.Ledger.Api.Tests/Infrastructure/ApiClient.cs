@@ -2,9 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using LedgerCore.Ledger.Api.Application;
-using LedgerCore.Ledger.Api.Persistence;
-using Microsoft.Extensions.DependencyInjection;
+using LedgerCore.Ledger.Api.Integration.Policy;
 
 namespace LedgerCore.Ledger.Api.Tests.Infrastructure;
 
@@ -34,10 +32,10 @@ internal sealed class ApiClient(LedgerApiFactory factory, HttpClient http)
         return (await ExpectAsync(response, HttpStatusCode.Created))["id"]!.GetValue<Guid>();
     }
 
-    public async Task<Guid> CreateJournalAsync(Guid ledgerId, string? externalReference = null)
+    public async Task<Guid> CreateJournalAsync(Guid ledgerId, string? externalReference = null, string transactionType = "PAYMENT")
     {
         var response = await Http.PostAsJsonAsync(
-            $"/api/v1/ledgers/{ledgerId}/journals", new { currency = "KES", description = "API journal", externalReference });
+            $"/api/v1/ledgers/{ledgerId}/journals", new { currency = "KES", description = "API journal", externalReference, transactionType });
         return (await ExpectAsync(response, HttpStatusCode.Created))["id"]!.GetValue<Guid>();
     }
 
@@ -50,11 +48,14 @@ internal sealed class ApiClient(LedgerApiFactory factory, HttpClient http)
     public async Task<JsonNode> GetJournalAsync(Guid ledgerId, Guid journalId) =>
         await ExpectAsync(await Http.GetAsync(new Uri($"/api/v1/ledgers/{ledgerId}/journals/{journalId}", UriKind.Relative)), HttpStatusCode.OK);
 
+    /// <summary>
+    /// Has the stub policy service decide APPROVED, then drives the real request-approval endpoint.
+    /// There is no approve endpoint: approval only comes from a recorded policy decision.
+    /// </summary>
     public async Task ApproveAsync(Guid ledgerId, Guid journalId)
     {
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<LedgerDbContext>();
-        await new TestApprovalRecorder(db, TimeProvider.System).ApproveAsync(ledgerId, journalId, "test-approver");
+        factory.Policy.Decide(journalId, PolicyDecisionValue.Approved);
+        await ExpectAsync(await CommandAsync(ledgerId, journalId, "request-approval"), HttpStatusCode.OK);
     }
 
     public static async Task<JsonNode> ExpectAsync(HttpResponseMessage response, HttpStatusCode status)

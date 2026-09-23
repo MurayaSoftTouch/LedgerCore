@@ -14,7 +14,13 @@ namespace LedgerCore.Ledger.Api.Application;
 internal sealed class JournalCommands(LedgerDbContext db, TimeProvider time)
 {
     public async Task<Journal> CreateDraftAsync(
-        Guid ledgerId, string currency, string description, string? externalReference, string actor, CancellationToken ct)
+        Guid ledgerId,
+        string currency,
+        JournalType type,
+        string description,
+        string? externalReference,
+        string actor,
+        CancellationToken ct)
     {
         if (!await db.Ledgers.AnyAsync(l => l.Id == ledgerId, ct))
         {
@@ -22,7 +28,7 @@ internal sealed class JournalCommands(LedgerDbContext db, TimeProvider time)
         }
 
         var journal = Journal.CreateDraft(
-            ledgerId, Currency.FromCode(currency), description, externalReference, actor, time.GetUtcNow());
+            ledgerId, Currency.FromCode(currency), type, description, externalReference, actor, time.GetUtcNow());
         db.Journals.Add(journal);
         await db.SaveChangesAsync(ct);
         return journal;
