@@ -183,12 +183,21 @@ Run on the developer machine (WSL2, Docker 29.1.3). **Remote CI has not run.**
 | Multi-service suite (`tests/integration`) | 13 / 13 passed |
 | Compose smoke (`compose-smoke.sh`) | passed, against images built from this branch |
 | Ledger domain tests | 68 / 68 passed |
-| Ledger API tests (PostgreSQL, policy client, consumer contract) | 188 / 188 passed; build 0 warnings; `dotnet format` clean |
+| Ledger API tests (PostgreSQL, policy client, consumer contract) | 189 / 189 passed, five consecutive runs; build 0 warnings; `dotnet format` clean |
 | Policy service (`./mvnw clean spotless:check verify`) | 235 / 235 passed; Spotless clean |
 | Contract (`contracts/validate.sh`, 1.1.0) | OpenAPI lint clean; 2 schemas compile; 7 / 7 examples as expected |
 | Database isolation (`verify-isolation.sh`) | 10 / 10 passed |
 | actionlint | clean |
 
-Defects found by this run (fixed in test code only; no production change):
+Defects found by this run. The fixes are in test code, plus one refactor with no behaviour change:
 - `PolicyOutageDegradesDependenciesButNotReadiness` depended on nothing listening at `localhost:8081`. It failed whenever the Compose stack was up. The test host now uses an unroutable address.
 - The client tests didn't check that retries resend the same transaction, or that `REJECTED` and contract-violating responses are sent only once. Those tests are now added.
+- `HostRefusesToStartWithInvalidConfiguration` intermittently got `ObjectDisposedException`. With minimal hosting, WebApplicationFactory races the failing entry point.
+  - The option registrations moved unchanged into `AddLedgerOptions`.
+  - The tests now run the real `IStartupValidator` against them.
+
+Environment issue (not a code defect): a fixture failure made all the PostgreSQL-backed ledger tests fail with Npgsql timeouts in some runs.
+- Cause: the Windows clock was about 108 s fast with Windows Time stopped. In WSL, `systemd-timesyncd` and the Hyper-V host time sync kept resetting the clock, so it swung ±108 s every few seconds.
+- Effect: Npgsql computes timeouts from wall-clock time, so each jump expired them instantly.
+- For this run, `systemd-timesyncd` was stopped temporarily. All gates then passed with no clock jumps.
+- The lasting fix is to resync the Windows clock.
