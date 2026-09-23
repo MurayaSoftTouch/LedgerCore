@@ -1,0 +1,110 @@
+openapi: 3.1.0
+info:
+  title: LedgerCore Policy Decision API
+  version: 1.0.0
+  summary: Contract between the ledger service (client) and the policy service (server).
+  description: |
+    The ledger asks the policy service whether a balanced journal may be approved.
+    The policy service never sees balances and never writes ledger state.
+
+    **Fail-closed rule.** The ledger treats every outcome other than a schema-valid
+    `200` with `decision: APPROVED` as "not approved". Timeouts, 5xx, malformed
+    bodies, unknown enum values and mismatched `transactionId` never approve a journal.
+    See `docs/adr/ADR-005-versioned-ledger-policy-contract.md`.
+
+    **Versioning.** Major version is in the path (`/v1`). Both sides send
+    `contractVersion` in the body; minor/patch changes are additive only.
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: http://localhost:8081
+    description: Local policy service
+tags:
+  - name: decisions
+    description: Transaction approval decisions
+paths:
+  /v1/policy-decisions:
+    post:
+      tags: [decisions]
+      operationId: evaluatePolicyDecision
+      summary: Evaluate approval policy for one journal
+      description: |
+        Synchronous evaluation. The ledger applies a client-side timeout
+        (default 2000 ms, `Ledger:PolicyDecisionTimeoutMs`). The server should
+        answer well inside that budget; if it cannot evaluate trustworthily it
+        must return 503, never a guessed decision.
+      parameters:
+        - name: X-Correlation-Id
+          in: header
+          required: false
+          description: Propagated for tracing; echoed back on the response.
+          schema:
+            type: string
+            maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/policy-decision-request.v1.schema.json'
+      responses:
+        '200':
+          description: A decision was made. `APPROVED`, `REJECTED` and `REVIEW_REQUIRED` are all 200.
+          headers:
+            X-Correlation-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '../schemas/policy-decision-response.v1.schema.json'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '409':
+          description: |
+            Unsupported `contractVersion` (e.g. a future major). The ledger
+            classifies this as contract incompatibility, not rejection.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          $ref: '#/components/responses/Problem'
+        '503':
+          description: Policy service cannot produce a trustworthy decision (e.g. policy store unavailable). Ledger fails closed.
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+components:
+  responses:
+    Problem:
+      description: RFC 9457 problem details.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+  schemas:
+    ProblemDetails:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+        correlationId:
+          type: string

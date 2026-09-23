@@ -1,0 +1,9 @@
+{
+  "contractVersion": "1.0.0",
+  "decisionId": "5e8d7c6b-4a3f-4e2d-9c1b-0a9f8e7d6c5b",
+  "transactionId": "7f3c2a8e-1d4b-4c6a-9e2f-0b5d8a1c3e7f",
+  "policyVersion": "default-limits@1",
+  "decision": "REJECTED",
+  "reasonCodes": [],
+  "evaluatedAt": "2026-09-23T09:15:00.120Z"
+}

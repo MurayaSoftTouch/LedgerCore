@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ledgercore.io/contracts/schemas/policy-decision-request.v1.schema.json",
+  "title": "PolicyDecisionRequest",
+  "description": "Sent by the ledger to the policy service before a journal may be approved. Contains only the facts policy evaluation needs: no balances, no journal-entry amounts per line, no ledger persistence identifiers beyond the transaction id.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "transactionId",
+    "organizationId",
+    "transactionType",
+    "currency",
+    "totalAmount",
+    "accountContext",
+    "requestedBy",
+    "requestedAt"
+  ],
+  "properties": {
+    "contractVersion": {
+      "description": "Semantic version of this contract the sender implements. The receiver rejects unknown major versions.",
+      "type": "string",
+      "pattern": "^1\\.\\d+\\.\\d+$"
+    },
+    "transactionId": {
+      "description": "Ledger-assigned identifier of the journal awaiting a decision. Stable across retries.",
+      "type": "string",
+      "format": "uuid"
+    },
+    "organizationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "transactionType": {
+      "description": "Business classification used for type restrictions. The set is closed in v1; adding a value is a minor version change that receivers must tolerate as REVIEW_REQUIRED until they support it.",
+      "type": "string",
+      "enum": ["PAYMENT", "TRANSFER", "ADJUSTMENT", "REVERSAL", "FEE"]
+    },
+    "currency": {
+      "description": "ISO 4217 alphabetic code. A journal is single-currency in v1.",
+      "type": "string",
+      "pattern": "^[A-Z]{3}$"
+    },
+    "totalAmount": {
+      "description": "Sum of the journal's debit lines (equal to the credits, since only balanced journals are submitted), as a decimal string in major units. A string rather than a JSON number, so it survives binary floating-point.",
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d{0,17})(\\.\\d{1,4})?$"
+    },
+    "accountContext": {
+      "description": "Accounts touched by the journal, for account-level restrictions. Balances are deliberately excluded.",
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["accountId", "accountType", "side"],
+        "properties": {
+          "accountId": { "type": "string", "format": "uuid" },
+          "accountType": {
+            "type": "string",
+            "enum": ["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"]
+          },
+          "side": { "type": "string", "enum": ["DEBIT", "CREDIT"] }
+        }
+      }
+    },
+    "requestedBy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["principalId", "principalType"],
+      "properties": {
+        "principalId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "principalType": { "type": "string", "enum": ["USER", "SERVICE"] }
+      }
+    },
+    "requestedAt": {
+      "description": "UTC instant the ledger requested the decision.",
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

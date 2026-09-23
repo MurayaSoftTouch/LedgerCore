@@ -1,0 +1,9 @@
+{
+  "contractVersion": "1.0.0",
+  "decisionId": "6f9e8d7c-5b4a-4f3e-8d2c-1b0a9f8e7d6c",
+  "transactionId": "7f3c2a8e-1d4b-4c6a-9e2f-0b5d8a1c3e7f",
+  "policyVersion": "default-limits@1",
+  "decision": "REVIEW_REQUIRED",
+  "reasonCodes": ["AMOUNT_ABOVE_AUTO_APPROVAL_THRESHOLD"],
+  "evaluatedAt": "2026-09-23T09:15:00.120Z"
+}
