@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.ledgercore.policy.support.Expect;
 import io.ledgercore.policy.support.PostgresIntegrationTest;
 import io.ledgercore.policy.support.Requests;
+import io.ledgercore.policy.support.TestTokens;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -91,6 +92,7 @@ class PolicyManagementApiTests extends PostgresIntegrationTest {
         mockMvc
             .perform(
                 MockMvcRequestBuilders.post("/api/v1/policies")
+                    .header("Authorization", TestTokens.ADMIN_BEARER)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("{\"key\": \"" + uniqueKey() + "\", \"name\": \"x\"}"))
             .andReturn();
@@ -200,6 +202,7 @@ class PolicyManagementApiTests extends PostgresIntegrationTest {
         mockMvc
             .perform(
                 MockMvcRequestBuilders.patch("/api/v1/policies/" + policy + "/versions/1")
+                    .header("Authorization", TestTokens.ADMIN_BEARER)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("{\"status\": \"ACTIVE\"}"))
             .andReturn();
@@ -208,6 +211,7 @@ class PolicyManagementApiTests extends PostgresIntegrationTest {
         mockMvc
             .perform(
                 MockMvcRequestBuilders.put("/api/v1/policies/" + policy + "/versions/1")
+                    .header("Authorization", TestTokens.ADMIN_BEARER)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("{\"rules\": []}"))
             .andReturn();

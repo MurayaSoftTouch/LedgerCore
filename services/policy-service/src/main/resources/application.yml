@@ -24,8 +24,13 @@ server:
 
 ledgercore:
   policy:
-    contract-version: 1.0.1
+    contract-version: 1.1.0
     environment: ${LEDGERCORE_ENVIRONMENT:local}
+    # Shared service credentials (ADR-013), from the environment only. The decision token is
+    # required; without an admin token the management API is disabled.
+    auth:
+      decision-token: ${POLICY_DECISION_API_TOKEN:}
+      admin-token: ${POLICY_ADMIN_API_TOKEN:}
 
 management:
   endpoints:

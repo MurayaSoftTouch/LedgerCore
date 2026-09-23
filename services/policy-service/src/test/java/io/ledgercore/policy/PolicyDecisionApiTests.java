@@ -28,7 +28,7 @@ class PolicyDecisionApiTests extends PostgresIntegrationTest {
     assertThat((String) Expect.json(result, "$.decision")).isEqualTo("APPROVED");
     assertThat(Expect.<List<String>>json(result, "$.reasonCodes")).isEmpty();
     assertThat((String) Expect.json(result, "$.policyVersion")).isEqualTo(scope.key() + "@1");
-    assertThat((String) Expect.json(result, "$.contractVersion")).isEqualTo("1.0.1");
+    assertThat((String) Expect.json(result, "$.contractVersion")).isEqualTo("1.1.0");
     assertThat(result.getResponse().getHeader("X-Correlation-Id")).isEqualTo("test-correlation");
   }
 

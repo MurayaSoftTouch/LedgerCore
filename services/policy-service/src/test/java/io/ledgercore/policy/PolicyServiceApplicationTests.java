@@ -27,7 +27,7 @@ class PolicyServiceApplicationTests extends PostgresIntegrationTest {
     mockMvc
         .perform(get("/actuator/info"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.contract-version").value("1.0.1"));
+        .andExpect(jsonPath("$.contract-version").value("1.1.0"));
   }
 
   @Test

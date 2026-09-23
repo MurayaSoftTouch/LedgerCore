@@ -16,6 +16,12 @@ public abstract class PostgresIntegrationTest {
 
   @DynamicPropertySource
   static void policyDatabase(DynamicPropertyRegistry registry) {
+    database(registry);
+    registry.add("ledgercore.policy.auth.admin-token", () -> TestTokens.ADMIN);
+  }
+
+  /** Database and decision-credential properties, without enabling the management API. */
+  public static void database(DynamicPropertyRegistry registry) {
     registry.add("spring.datasource.url", PolicyPostgres::jdbcUrl);
     // As in production: the service runs as policy_runtime, Flyway migrates as policy_app.
     registry.add("spring.datasource.username", () -> "policy_runtime");
@@ -23,6 +29,7 @@ public abstract class PostgresIntegrationTest {
     registry.add("spring.flyway.user", () -> "policy_app");
     registry.add("spring.flyway.password", () -> PolicyPostgres.POLICY_PASSWORD);
     registry.add("spring.datasource.hikari.maximum-pool-size", () -> "20");
+    registry.add("ledgercore.policy.auth.decision-token", () -> TestTokens.DECISION);
   }
 
   protected PolicyApi api() {
