@@ -15,7 +15,7 @@ internal sealed class LedgerApiOptions
     [RegularExpression(@"^\d+\.\d+\.\d+$")]
     public string ContractVersion { get; init; } = string.Empty;
 
-    /// <summary>Base URL of the policy service. Not called yet; validated now so misconfiguration surfaces early.</summary>
+    /// <summary>Base URL of the policy service.</summary>
     [Required]
     [Url]
     public string PolicyServiceBaseUrl { get; init; } = string.Empty;
@@ -25,4 +25,20 @@ internal sealed class LedgerApiOptions
     /// </summary>
     [Range(100, 30_000)]
     public int PolicyDecisionTimeoutMs { get; init; } = 2_000;
+
+    /// <summary>Upper bound on one attempt within the total budget.</summary>
+    [Range(50, 30_000)]
+    public int PolicyAttemptTimeoutMs { get; init; } = 800;
+
+    /// <summary>Extra attempts after the first, for transient failures only (ADR-012).</summary>
+    [Range(0, 5)]
+    public int PolicyMaxRetries { get; init; } = 2;
+
+    /// <summary>
+    /// Shared service credential for the policy decision API (ADR-013). From the environment
+    /// (<c>Ledger__PolicyServiceToken</c>) only; never logged.
+    /// </summary>
+    [Required]
+    [MinLength(32)]
+    public string PolicyServiceToken { get; init; } = string.Empty;
 }

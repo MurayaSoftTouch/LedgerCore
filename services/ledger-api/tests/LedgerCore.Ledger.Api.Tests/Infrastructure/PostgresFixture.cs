@@ -24,6 +24,7 @@ public sealed class PostgresFixture : IAsyncLifetime
         .WithEnvironment("LEDGER_DB_PASSWORD", OwnerPassword)
         .WithEnvironment("LEDGER_RUNTIME_DB_PASSWORD", RuntimePassword)
         .WithEnvironment("POLICY_DB_PASSWORD", "test-policy")
+        .WithEnvironment("POLICY_RUNTIME_DB_PASSWORD", "test-policy-runtime")
         .WithResourceMapping(new FileInfo(RepositoryPaths.PostgresInitScript), "/docker-entrypoint-initdb.d/")
         .Build();
 

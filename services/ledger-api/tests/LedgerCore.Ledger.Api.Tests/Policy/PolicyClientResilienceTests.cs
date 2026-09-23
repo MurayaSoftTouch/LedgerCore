@@ -1,0 +1,158 @@
+using System.Diagnostics;
+using System.Net;
+using LedgerCore.Ledger.Api.Integration.Correlation;
+using LedgerCore.Ledger.Api.Integration.Policy;
+using LedgerCore.Ledger.Api.Tests.Infrastructure;
+using static LedgerCore.Ledger.Api.Tests.Policy.PolicyClientHarness;
+
+namespace LedgerCore.Ledger.Api.Tests.Policy;
+
+/// <summary>Retry, timeout and status mapping of the real client pipeline (no database).</summary>
+public sealed class PolicyClientResilienceTests
+{
+    private static readonly string Approved = ExampleResponse("response.approved.valid.json");
+
+    private static async Task<(PolicyEvaluationResult Result, StubHttpHandler Handler)> Evaluate(
+        Func<HttpRequestMessage, int, Task<HttpResponseMessage>> respond, int totalMs = 1_000, int attemptMs = 200, int retries = 2)
+    {
+        var handler = new StubHttpHandler(respond);
+        var (client, provider) = Create(handler, totalMs, attemptMs, retries);
+        await using (provider)
+        {
+            return (await client.EvaluateAsync(Request(), CancellationToken.None), handler);
+        }
+    }
+
+    private static Task<HttpResponseMessage> Status(HttpStatusCode status, string body = "{}") =>
+        Task.FromResult(StubHttpHandler.Json(status, body, "application/problem+json"));
+
+    [Fact]
+    public async Task SendsContractRequestWithCredentialAndCorrelationId()
+    {
+        CorrelationId.Current = "corr-client-test";
+        var (result, handler) = await Evaluate((_, _) => Task.FromResult(StubHttpHandler.Json(HttpStatusCode.OK, Approved)));
+
+        Assert.IsType<PolicyEvaluationResult.Decided>(result);
+        var (request, body) = Assert.Single(handler.Received);
+        Assert.Equal(HttpMethod.Post, request.Method);
+        Assert.Equal("http://policy.test:8081/v1/policy-decisions", request.RequestUri!.ToString());
+        Assert.Equal("Bearer", request.Headers.Authorization!.Scheme);
+        Assert.Equal(Token, request.Headers.Authorization.Parameter);
+        Assert.Equal("corr-client-test", Assert.Single(request.Headers.GetValues(CorrelationId.Header)));
+        Assert.Equal("application/json", request.Content!.Headers.ContentType!.MediaType);
+        Assert.True(Contracts.IsValidRequest(body), body);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    [InlineData(HttpStatusCode.GatewayTimeout)]
+    public async Task TransientStatusIsRetriedThenSucceeds(HttpStatusCode transient)
+    {
+        var (result, handler) = await Evaluate((_, attempt) =>
+            attempt == 1 ? Status(transient) : Task.FromResult(StubHttpHandler.Json(HttpStatusCode.OK, Approved)));
+
+        Assert.IsType<PolicyEvaluationResult.Decided>(result);
+        Assert.Equal(2, handler.Attempts);
+    }
+
+    [Fact]
+    public async Task PersistentUnavailabilityIsBoundedAndReportedAsUnavailable()
+    {
+        var (result, handler) = await Evaluate((_, _) => Status(HttpStatusCode.ServiceUnavailable));
+
+        Assert.Equal(PolicyFailureKind.Unavailable, Assert.IsType<PolicyEvaluationResult.Failed>(result).Kind);
+        Assert.Equal(3, handler.Attempts); // 1 + 2 retries
+    }
+
+    [Fact]
+    public async Task ConnectionFailureIsRetriedThenReportedAsUnavailable()
+    {
+        var (result, handler) = await Evaluate((_, _) => throw new HttpRequestException("connection refused"));
+
+        Assert.Equal(PolicyFailureKind.Unavailable, Assert.IsType<PolicyEvaluationResult.Failed>(result).Kind);
+        Assert.Equal(3, handler.Attempts);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.InternalServerError, nameof(PolicyFailureKind.Unavailable))]
+    [InlineData(HttpStatusCode.BadRequest, nameof(PolicyFailureKind.ContractViolation))]
+    [InlineData(HttpStatusCode.Unauthorized, nameof(PolicyFailureKind.AuthenticationFailed))]
+    [InlineData(HttpStatusCode.Forbidden, nameof(PolicyFailureKind.AuthenticationFailed))]
+    [InlineData((HttpStatusCode)418, nameof(PolicyFailureKind.InvalidResponse))]
+    public async Task NonTransientStatusIsNotRetried(HttpStatusCode status, string expectedKind)
+    {
+        var expected = Enum.Parse<PolicyFailureKind>(expectedKind);
+        var (result, handler) = await Evaluate((_, _) => Status(status));
+
+        Assert.Equal(expected, Assert.IsType<PolicyEvaluationResult.Failed>(result).Kind);
+        Assert.Equal(1, handler.Attempts);
+    }
+
+    [Theory]
+    [InlineData("IDEMPOTENCY_CONFLICT", nameof(PolicyFailureKind.Conflict))]
+    [InlineData("CONTRACT_VERSION_UNSUPPORTED", nameof(PolicyFailureKind.ContractViolation))]
+    public async Task ConflictsAreModelledAndNeverRetried(string code, string expectedKind)
+    {
+        var expected = Enum.Parse<PolicyFailureKind>(expectedKind);
+        var (result, handler) = await Evaluate((_, _) => Status(HttpStatusCode.Conflict, $$"""{"type":"urn:ledgercore:problem:{{code}}","title":"{{code}}","status":409,"code":"{{code}}"}"""));
+
+        Assert.Equal(expected, Assert.IsType<PolicyEvaluationResult.Failed>(result).Kind);
+        Assert.Equal(1, handler.Attempts);
+    }
+
+    [Fact]
+    public async Task BusinessDecisionsAreNeverRetried()
+    {
+        var (result, handler) = await Evaluate((_, _) =>
+            Task.FromResult(StubHttpHandler.Json(HttpStatusCode.OK, ExampleResponse("response.review-required.valid.json"))));
+
+        Assert.Equal(PolicyDecisionValue.ReviewRequired, Assert.IsType<PolicyEvaluationResult.Decided>(result).Decision.Decision);
+        Assert.Equal(1, handler.Attempts);
+    }
+
+    [Fact]
+    public async Task SlowAttemptsAreCutOffRetriedAndReportedAsTimeout()
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var (result, handler) = await Evaluate(
+            async (_, _) =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(10));
+                return StubHttpHandler.Json(HttpStatusCode.OK, Approved);
+            },
+            totalMs: 2_000,
+            attemptMs: 150);
+
+        Assert.Equal(PolicyFailureKind.Timeout, Assert.IsType<PolicyEvaluationResult.Failed>(result).Kind);
+        Assert.Equal(3, handler.Attempts);
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(2.5), $"took {stopwatch.Elapsed}");
+    }
+
+    [Fact]
+    public async Task TotalBudgetBoundsEverythingIncludingBackoff()
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var (result, _) = await Evaluate(
+            async (_, _) =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(10));
+                return StubHttpHandler.Json(HttpStatusCode.OK, Approved);
+            },
+            totalMs: 300,
+            attemptMs: 5_000,
+            retries: 5);
+
+        Assert.Equal(PolicyFailureKind.Timeout, Assert.IsType<PolicyEvaluationResult.Failed>(result).Kind);
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(1.5), $"took {stopwatch.Elapsed}");
+    }
+
+    [Fact]
+    public async Task MalformedBodyIsInvalidResponseAndNotRetried()
+    {
+        var (result, handler) = await Evaluate((_, _) => Task.FromResult(StubHttpHandler.Json(HttpStatusCode.OK, "<html>")));
+
+        Assert.Equal(PolicyFailureKind.InvalidResponse, Assert.IsType<PolicyEvaluationResult.Failed>(result).Kind);
+        Assert.Equal(1, handler.Attempts);
+    }
+}
