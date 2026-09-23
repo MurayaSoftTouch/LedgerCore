@@ -53,6 +53,20 @@ public final class Sql {
     return error;
   }
 
+  /** Like {@link #fails} but as policy_runtime, the role the service runs as. */
+  public static PSQLException failsAsRuntime(String sql, Object... args) {
+    var error =
+        catchThrowableOfType(
+            PSQLException.class,
+            () -> {
+              try (var c = PolicyPostgres.connectRuntime()) {
+                execute(c, sql, args);
+              }
+            });
+    assertThat((Throwable) error).as("expected a PostgreSQL error from: %s", sql).isNotNull();
+    return error;
+  }
+
   public static void assertGuard(PSQLException error, String code) {
     assertThat(error.getSQLState()).isEqualTo(POLICY_GUARD);
     assertThat(error.getServerErrorMessage().getMessage()).startsWith(code + ":");

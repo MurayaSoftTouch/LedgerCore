@@ -13,6 +13,7 @@ services:
       LEDGER_DB_PASSWORD: ${LEDGER_DB_PASSWORD:?set in .env}
       LEDGER_RUNTIME_DB_PASSWORD: ${LEDGER_RUNTIME_DB_PASSWORD:?set in .env}
       POLICY_DB_PASSWORD: ${POLICY_DB_PASSWORD:?set in .env}
+      POLICY_RUNTIME_DB_PASSWORD: ${POLICY_RUNTIME_DB_PASSWORD:?set in .env}
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:

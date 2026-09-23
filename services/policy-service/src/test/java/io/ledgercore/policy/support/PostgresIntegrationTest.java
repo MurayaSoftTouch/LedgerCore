@@ -17,8 +17,11 @@ public abstract class PostgresIntegrationTest {
   @DynamicPropertySource
   static void policyDatabase(DynamicPropertyRegistry registry) {
     registry.add("spring.datasource.url", PolicyPostgres::jdbcUrl);
-    registry.add("spring.datasource.username", () -> "policy_app");
-    registry.add("spring.datasource.password", () -> PolicyPostgres.POLICY_PASSWORD);
+    // As in production: the service runs as policy_runtime, Flyway migrates as policy_app.
+    registry.add("spring.datasource.username", () -> "policy_runtime");
+    registry.add("spring.datasource.password", () -> PolicyPostgres.POLICY_RUNTIME_PASSWORD);
+    registry.add("spring.flyway.user", () -> "policy_app");
+    registry.add("spring.flyway.password", () -> PolicyPostgres.POLICY_PASSWORD);
     registry.add("spring.datasource.hikari.maximum-pool-size", () -> "20");
   }
 
