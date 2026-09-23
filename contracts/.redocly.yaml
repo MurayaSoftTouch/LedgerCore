@@ -1,7 +1,5 @@
 extends:
   - recommended
 rules:
-  # The API is internal service-to-service; security is added with the policy client in Milestone 3.
-  security-defined: off
   # Servers list only the local development address; deployed URLs come from service configuration.
   no-server-example.com: off

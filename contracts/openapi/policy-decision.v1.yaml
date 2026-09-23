@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: LedgerCore Policy Decision API
-  version: 1.0.1
+  version: 1.1.0
   summary: Contract between the ledger service (client) and the policy service (server).
   description: |
     The ledger asks the policy service whether a balanced journal may be approved.
@@ -24,7 +24,17 @@ info:
     repeated `transactionId` with different decision-relevant fields is `409`
     (`IDEMPOTENCY_CONFLICT`); the original decision stands.
 
+    **Authentication (1.1.0).** Every evaluation request carries the ledger's
+    service credential as `Authorization: Bearer <credential>`. A missing or
+    invalid credential is `401` (`SERVICE_AUTHENTICATION_REQUIRED`), and nothing
+    is evaluated or recorded. The credential is deployment configuration, never
+    part of a payload. See ADR-013 for its limits.
+
     **Changelog.**
+    - 1.1.0: documents service authentication (bearer security scheme, `401`).
+      Payload schemas are unchanged. Compatibility note: a caller that sends no
+      credential now receives `401`. The ledger, the only consumer, sends it
+      from this version on.
     - 1.0.1: clarifications only, with no change to validation. Idempotency
       semantics; `policyVersion` is `none` when no policy version could decide;
       reserved reason codes; `409` also covers idempotency conflicts; problem
@@ -45,6 +55,8 @@ paths:
       tags: [decisions]
       operationId: evaluatePolicyDecision
       summary: Evaluate approval policy for one journal
+      security:
+        - serviceCredential: []
       description: |
         Synchronous evaluation. The ledger applies a client-side timeout
         (default 2000 ms, `Ledger:PolicyDecisionTimeoutMs`). The server should
@@ -77,6 +89,19 @@ paths:
                 $ref: '../schemas/policy-decision-response.v1.schema.json'
         '400':
           $ref: '#/components/responses/Problem'
+        '401':
+          description: |
+            `SERVICE_AUTHENTICATION_REQUIRED` (1.1.0): missing or invalid service
+            credential. The ledger classifies this as a configuration failure: it
+            fails closed and does not retry.
+          headers:
+            WWW-Authenticate:
+              schema:
+                type: string
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '409':
           description: |
             `CONTRACT_VERSION_UNSUPPORTED`: `contractVersion` is not 1.x (e.g. a
@@ -103,6 +128,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
 components:
+  securitySchemes:
+    serviceCredential:
+      type: http
+      scheme: bearer
+      description: |
+        Shared service credential issued to the ledger (ADR-013). Opaque, at least
+        32 characters, supplied through environment configuration.
   responses:
     Problem:
       description: RFC 9457 problem details.

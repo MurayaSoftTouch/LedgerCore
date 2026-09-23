@@ -14,9 +14,13 @@ The contract between `ledger-api` (client) and `policy-service` (server). It is 
 ./contracts/validate.sh   # requires Node.js 20+; tools are fetched at pinned versions via npx
 ```
 
-Current version: **1.0.1**. 1.0.1 clarifies semantics only (idempotency, `policyVersion: "none"`, reserved reason codes, `409` conflict codes, the problem `code`); every 1.0.0 message is still valid. See the changelog in the OpenAPI description.
+Current version: **1.1.0**.
+- 1.1.0 documents service authentication: `Authorization: Bearer`, and `401` when it is missing or invalid.
+- 1.0.1 clarified semantics: idempotency, `policyVersion: "none"`, reserved reason codes, the `409` conflict codes and the problem `code`.
 
-The policy service tests its HTTP behaviour against these files directly (`services/policy-service/.../ContractComplianceTests.java`).
+Payload schemas are unchanged since 1.0.0. See the changelog in the OpenAPI description.
+
+The policy service (provider) tests its HTTP behaviour against these files directly: `services/policy-service/.../ContractComplianceTests.java` and `ServiceAuthenticationTests.java`.
 
 ## Rules
 
