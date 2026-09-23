@@ -1,8 +1,10 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/LedgerCore.Ledger.Api/LedgerCore.Ledger.Api.csproj" />
+    <Project Path="src/LedgerCore.Ledger.Domain/LedgerCore.Ledger.Domain.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/LedgerCore.Ledger.Api.Tests/LedgerCore.Ledger.Api.Tests.csproj" />
+    <Project Path="tests/LedgerCore.Ledger.Domain.Tests/LedgerCore.Ledger.Domain.Tests.csproj" />
   </Folder>
 </Solution>
