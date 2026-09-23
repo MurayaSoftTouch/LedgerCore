@@ -53,13 +53,19 @@ internal sealed class JournalCommands(LedgerDbContext db, TimeProvider time)
 
     /// <summary>
     /// Posts an approved journal. Inside one transaction: lock the journal, re-read its persisted
-    /// entries, share-lock and re-read the accounts, validate, transition. Client totals are never used.
+    /// entries, share-lock and re-read the accounts, validate, transition, and write the
+    /// <c>JournalPosted</c> outbox event (ADR-014). Client totals are never used.
     /// </summary>
     public Task<Journal> PostAsync(Guid ledgerId, Guid journalId, string actor, CancellationToken ct) =>
         InTransactionAsync(ledgerId, journalId, async journal =>
         {
             var accounts = await LockAndLoadAccountsAsync(journal, ct);
-            journal.Post(accounts, actor, time.GetUtcNow());
+            var totals = journal.Post(accounts, actor, time.GetUtcNow());
+            var decisionId = await db.JournalPolicyDecisions
+                .Where(d => d.JournalId == journalId)
+                .Select(d => (Guid?)d.DecisionId)
+                .SingleOrDefaultAsync(ct);
+            db.OutboxEvents.Add(OutboxEvent.JournalPosted(journal, totals, decisionId));
         }, ct);
 
     /// <summary>

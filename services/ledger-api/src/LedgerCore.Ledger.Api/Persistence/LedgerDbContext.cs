@@ -18,6 +18,9 @@ internal sealed class LedgerDbContext(DbContextOptions<LedgerDbContext> options)
     /// <summary>Policy decisions received for journals (append-only approval evidence).</summary>
     public DbSet<JournalPolicyDecision> JournalPolicyDecisions => Set<JournalPolicyDecision>();
 
+    /// <summary>Transactional outbox (ADR-014); written with the change it describes.</summary>
+    public DbSet<OutboxEvent> OutboxEvents => Set<OutboxEvent>();
+
     /// <summary>Written only by a database trigger; read-only to the application.</summary>
     public DbSet<JournalStatusTransition> JournalStatusTransitions => Set<JournalStatusTransition>();
 
