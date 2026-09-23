@@ -1,0 +1,3 @@
+# EF Core-generated migrations and snapshot: exempt from analyzers (hand-written SQL inside is reviewed).
+[*.cs]
+generated_code = true
