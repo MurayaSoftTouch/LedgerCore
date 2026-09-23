@@ -5,6 +5,9 @@ internal static class RepositoryPaths
     public static string PostgresInitScript =>
         Path.Combine(RepositoryRoot, "infra", "docker", "postgres", "init", "01-create-databases.sh");
 
+    public static string LedgerApiAppSettings =>
+        Path.Combine(RepositoryRoot, "services", "ledger-api", "src", "LedgerCore.Ledger.Api", "appsettings.json");
+
     private static string RepositoryRoot
     {
         get

@@ -19,17 +19,7 @@ builder.Logging.AddJsonConsole(options =>
     options.TimestampFormat = "yyyy-MM-dd'T'HH:mm:ss.fff'Z'";
 });
 
-builder.Services
-    .AddOptions<LedgerApiOptions>()
-    .BindConfiguration(LedgerApiOptions.SectionName)
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
-
-builder.Services
-    .AddOptions<LedgerDatabaseOptions>()
-    .BindConfiguration(LedgerDatabaseOptions.SectionName)
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
+builder.Services.AddLedgerOptions();
 
 // No automatic schema changes at startup: migrations are applied explicitly by the schema owner.
 builder.Services.AddDbContext<LedgerDbContext>((services, options) =>

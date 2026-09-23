@@ -1,14 +1,47 @@
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
+using LedgerCore.Ledger.Api.Configuration;
+using LedgerCore.Ledger.Api.Tests.Infrastructure;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace LedgerCore.Ledger.Api.Tests;
 
-/// <summary>Startup validation happens before any database access, so these need no container.</summary>
+/// <summary>
+/// Startup validation of the host's real option registration, over the real appsettings.json. It runs
+/// the <see cref="IStartupValidator"/> that host start invokes, not a WebApplicationFactory. With
+/// minimal hosting the factory races the failing entry point, and it may surface
+/// ObjectDisposedException instead of the validation error.
+/// </summary>
 public sealed class LedgerApiOptionsValidationTests
 {
     private const string UnusedConnection = "Host=unused.invalid;Database=ledger;Username=ledger_runtime";
     private const string ValidToken = "options-test-policy-token-00000000000000000";
+
+    private static void ValidateAtStartup(params (string Key, string? Value)[] overrides)
+    {
+        var settings = new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:Ledger"] = UnusedConnection,
+            ["Ledger:PolicyServiceToken"] = ValidToken,
+        };
+        foreach (var (key, value) in overrides)
+        {
+            settings[key] = value;
+        }
+
+        var configuration = new ConfigurationBuilder()
+            .AddJsonFile(RepositoryPaths.LedgerApiAppSettings)
+            .AddInMemoryCollection(settings)
+            .Build();
+        using var provider = new ServiceCollection()
+            .AddSingleton<IConfiguration>(configuration)
+            .AddLedgerOptions()
+            .BuildServiceProvider();
+        provider.GetRequiredService<IStartupValidator>().Validate();
+    }
+
+    [Fact]
+    public void ValidConfigurationPasses() => ValidateAtStartup();
 
     [Theory]
     [InlineData("Ledger:ContractVersion", "")]
@@ -20,23 +53,14 @@ public sealed class LedgerApiOptionsValidationTests
     [InlineData("Ledger:PolicyServiceToken", "too-short")]
     public void HostRefusesToStartWithInvalidConfiguration(string key, string value)
     {
-        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder
-            .UseSetting("ConnectionStrings:Ledger", UnusedConnection)
-            .UseSetting("Ledger:PolicyServiceToken", ValidToken)
-            .UseSetting(key, value));
-
-        var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
+        var exception = Assert.Throws<OptionsValidationException>(() => ValidateAtStartup((key, value)));
         Assert.Contains(key.Split(':')[1], exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void HostRefusesToStartWithoutLedgerConnectionString()
     {
-        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder
-            .UseSetting("ConnectionStrings:Ledger", string.Empty)
-            .UseSetting("Ledger:PolicyServiceToken", ValidToken));
-
-        var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
+        var exception = Assert.Throws<OptionsValidationException>(() => ValidateAtStartup(("ConnectionStrings:Ledger", string.Empty)));
         Assert.Contains("Ledger", exception.Message, StringComparison.Ordinal);
     }
 }
