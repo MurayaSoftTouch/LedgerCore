@@ -93,7 +93,7 @@ DRAFT ──submit──▶ PENDING_APPROVAL ──approve──▶ APPROVED ─
 - Every edge is enforced by a domain method **and** by the `journals_before_update` trigger. There is no way to set `status` directly: the API has no PATCH, PUT or DELETE for journals.
 - Every transition is appended to `journal_status_transitions` **by a database trigger**, with the actor and timestamp from the row. The runtime role can only read that table.
 
-**Approval in Milestone 1 is not a production workflow.** Nothing reaches `APPROVED` through the public API; there is no approve endpoint. Tests use `TestApprovalRecorder`, which is internal, not registered in dependency injection, and unreachable over HTTP. Milestone 2/3 replaces it with a recorded policy decision.
+**Approval (since Milestone 3).** The only path to `APPROVED` or `REJECTED` is a policy decision recorded as evidence in `journal_policy_decisions`, and the lifecycle trigger enforces this ([service-integration.md](service-integration.md), ADR-012). There is no approve endpoint. Milestone 1's test-only `TestApprovalRecorder` was deleted; tests approve through the real path with a stubbed policy client. Journals also carry an immutable `transactionType` (`PAYMENT`, `TRANSFER`, `ADJUSTMENT`, `FEE`, and `REVERSAL` for reversals only), because the policy contract requires it.
 
 ## Posting transaction
 
@@ -179,13 +179,14 @@ All journal commands require an `X-Actor-Id` header. It is **unverified and clie
 | `POST …/accounts/{accountId}/deactivate` | Deactivate (one-way) |
 | `POST /api/v1/ledgers/{ledgerId}/journals` · `GET …/journals/{journalId}` | Create a draft; read a journal with entries, totals and derived reversal state |
 | `POST …/journals/{journalId}/entries` | Add an entry (draft only) |
-| `POST …/journals/{journalId}/submit` | `DRAFT → PENDING_APPROVAL` |
+| `POST …/journals/{journalId}/submit` | `DRAFT → PENDING_APPROVAL`, then request a policy decision (Milestone 3) |
+| `POST …/journals/{journalId}/request-approval` | Retry the policy decision for a `PENDING_APPROVAL` journal (Milestone 3) |
 | `POST …/journals/{journalId}/post` | `APPROVED → POSTED` |
 | `POST …/journals/{journalId}/reverse` | Create the reversal (`PENDING_APPROVAL`) |
 
 ## Known limitations
 
-- There is no production approval path until policy integration (Milestone 2/3), and no authentication; the actor is client-asserted.
+- There is no end-user authentication; the actor is client-asserted. Approval comes only from the policy service (Milestone 3), and there is no manual-review workflow yet.
 - The schema owner or a superuser can bypass the triggers (see above).
 - Currency-specific precision is enforced in the domain, not in SQL (ADR-008).
 - There is no draft deletion, no entry removal from drafts, and no journal listing or search endpoint.

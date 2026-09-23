@@ -22,9 +22,9 @@ Pre-release. Only `main` is supported.
 - Credentials must never be committed. If one is committed, rotate it first, then remove it.
 - The PostgreSQL port is bound to `127.0.0.1` only.
 
-## Current limitations (as of Milestone 2)
+## Current limitations (as of Milestone 3)
 
-- There is no authentication on either service, or between them. Service-to-service authentication is Milestone 3 scope; a full security review is Milestone 5.
-- The policy **management** API (create or activate policy versions) changes financial control logic. It needs administrative authorization before any non-local deployment. `X-Actor-Id` headers on both services are recorded but client-asserted.
-- Policy history is protected by database triggers, but the service runs as the schema owner (`policy_app`), which can disable triggers. See `docs/architecture/policy-engine.md` (Database isolation).
+- Ledger → policy calls use shared bearer credentials (ADR-013), with a separate credential for the policy management API, which is disabled when that credential isn't set. This proves possession of a secret, not workload identity. Without TLS the credential crosses the network in the clear, which is acceptable only on a trusted local network.
+- There is no end-user authentication on the ledger API. `X-Actor-Id` headers on both services are recorded but client-asserted. A full security review is Milestone 5.
+- Both services run as least-privilege runtime roles. Schema owners and superusers can still disable the database guard triggers (ADR-007).
 - The policy service's OpenAPI and Swagger UI are enabled by default. Disable them (`springdoc.api-docs.enabled=false`) outside development.

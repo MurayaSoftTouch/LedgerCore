@@ -14,15 +14,18 @@ The core guarantees:
 - a policy decision that can't be trusted never approves anything (fail closed; designed in ADR-005, implemented in Milestone 3);
 - retries never double-post, and failures never leave partial state (posting is one locked transaction; command idempotency keys are Milestone 4).
 
-> **Status: Milestone 1 (ledger domain).** `ledger-api` implements ledgers, a chart of accounts, journals with double-entry validation, the ADR-006 lifecycle, transactional posting, and reversals, persisted in PostgreSQL with database-enforced invariants. There is **no production approval path yet**: journals reach `APPROVED` only through a test-only recorder until the policy service is integrated (Milestones 2–3). 
+> **Status: Milestone 3 (integration).** The ledger obtains every approval from the policy service. It uses a typed client with bounded retries, keeps journals `PENDING_APPROVAL` on any failure (fail closed), records each decision as append-only evidence that the database requires, and writes a `JournalPosted` outbox event with each posting. Service calls are authenticated with shared credentials, correlation ids span both services, and both run as least-privilege database roles. Docker Compose runs the whole stack. See [service integration](docs/architecture/service-integration.md) and the [Milestone 3 backlog](docs/backlog/milestone-3.md).
 >
-> **Milestone 2 (policy engine).** `policy-service` implements versioned approval policies with four structured rule types, deterministic most-restrictive-wins evaluation, immutable and idempotent decision records, and contract v1 (1.0.1) on `POST /v1/policy-decisions`, persisted in its own PostgreSQL database. **The ledger does not call it yet**: the policy client and fail-closed handling are Milestone 3. Neither service has authentication. See [policy engine](docs/architecture/policy-engine.md), [ledger domain](docs/architecture/ledger-domain.md) and the [Milestone 1](docs/backlog/milestone-1.md) and [Milestone 2](docs/backlog/milestone-2.md) backlogs.
+> **Milestone 1 (ledger domain).** `ledger-api` implements ledgers, a chart of accounts, journals with double-entry validation, the ADR-006 lifecycle, transactional posting, and reversals, persisted in PostgreSQL with database-enforced invariants.
+>
+> **Milestone 2 (policy engine).** `policy-service` implements versioned approval policies with four structured rule types, deterministic most-restrictive-wins evaluation, immutable and idempotent decision records, and contract v1 (now 1.1.0) on `POST /v1/policy-decisions`, persisted in its own PostgreSQL database. See [policy engine](docs/architecture/policy-engine.md), [ledger domain](docs/architecture/ledger-domain.md) and the [Milestone 1](docs/backlog/milestone-1.md) and [Milestone 2](docs/backlog/milestone-2.md) backlogs.
 
 ## Repository layout
 
 ```text
 services/ledger-api/        ASP.NET Core solution: Domain + Api (src/), unit + PostgreSQL tests (tests/)
 services/policy-service/    Spring Boot service (Maven wrapper)
+tests/integration/          Multi-service tests (Testcontainers + Toxiproxy) and the Compose smoke script
 contracts/                  OpenAPI + JSON Schemas + examples + validate.sh
 infra/docker/postgres/      Database init and isolation check
 docs/adr/                   Architecture decision records
@@ -31,7 +34,7 @@ docs/backlog/               Initial and per-milestone backlogs (not yet GitHub i
 .github/                    CI, issue/PR templates, CODEOWNERS, label definitions
 ```
 
-`tests/contract` and `tests/integration` arrive in Milestone 3; they aren't created as empty placeholders.
+Contract tests live with each side: provider tests in `services/policy-service`, consumer tests in `services/ledger-api`. There is no separate `tests/contract` placeholder.
 
 ## Prerequisites
 
@@ -43,6 +46,16 @@ docs/backlog/               Initial and per-milestone backlogs (not yet GitHub i
 | Node.js | 20+ | only for `contracts/validate.sh` |
 
 ## Getting started
+
+**Whole stack in Docker** (Milestone 3):
+
+```bash
+cp .env.example .env                        # local-only defaults, including service credentials
+docker compose up -d --build --wait         # postgres, ledger-migrate, policy-service, ledger-api
+./tests/integration/compose-smoke.sh        # approve and post one journal end to end
+```
+
+**Services on the host** (for development):
 
 ```bash
 # 1. Database
@@ -60,16 +73,18 @@ dotnet ef database update --project src/LedgerCore.Ledger.Api \
   --connection "Host=localhost;Port=$POSTGRES_PORT;Database=ledger;Username=ledger_app;Password=$LEDGER_DB_PASSWORD"
 # The API connects as the least-privilege runtime role:
 export ConnectionStrings__Ledger="Host=localhost;Port=$POSTGRES_PORT;Database=ledger;Username=ledger_runtime;Password=$LEDGER_RUNTIME_DB_PASSWORD"
+export Ledger__PolicyServiceToken="$POLICY_DECISION_API_TOKEN"   # the policy service's decision credential
 dotnet run --project src/LedgerCore.Ledger.Api --launch-profile http
 
 # 3. Policy service  → http://localhost:8081   (new terminal)
-set -a; source .env; set +a                # POLICY_DB_PASSWORD; there is no committed default
+set -a; source .env; set +a                # POLICY_*_PASSWORD and POLICY_*_TOKEN; no committed defaults
 cd services/policy-service
 ./mvnw verify                              # unit + PostgreSQL 18.6 Testcontainers tests (Docker required)
 ./mvnw spring-boot:run                     # Flyway migrates the `policy` database at startup
 
-# 4. Contract
+# 4. Contract, and the multi-service suite (builds both images; Docker required)
 ./contracts/validate.sh
+(cd tests/integration && dotnet test)
 ```
 
 The API never changes the schema at startup. If you created the Compose volume before Milestone 1, recreate it (`docker compose down -v`, which deletes local data) so the init script creates the `ledger_runtime` role.
@@ -92,7 +107,8 @@ The full endpoint list is in [ledger-domain.md](docs/architecture/ledger-domain.
 | Readiness | `/health/ready` (checks the ledger database) | `/actuator/health/readiness` |
 | OpenAPI | `/openapi/v1.json` (Development) | `/openapi/v3/api-docs`, `/openapi/swagger-ui.html` |
 | Info | — | `/actuator/info` (contract version) |
-| Readiness includes | ledger database | policy database (`readinessState,db`) |
+| Readiness includes | ledger database | policy database and schema (`readinessState,db,policySchema`) |
+| Dependencies | `/health/dependencies`: policy service (`Degraded` when unreachable) | — |
 
 ### Configuration
 
@@ -103,7 +119,8 @@ Both services validate their configuration at startup and refuse to start if it'
 | `ConnectionStrings:Ledger`: required; the `ledger_runtime` role | |
 | `ContractVersion`: semver, required | `contract-version`: semver, required |
 | `PolicyServiceBaseUrl`: absolute URL, required | `environment`: required (`LEDGERCORE_ENVIRONMENT`, default `local`) |
-| | `POLICY_DB_URL` (default `jdbc:postgresql://localhost:5432/policy`), `POLICY_DB_USERNAME` (default `policy_app`), `POLICY_DB_PASSWORD` (required, no default) |
+| `PolicyServiceToken`: required, ≥ 32 characters (`Ledger__PolicyServiceToken`) | `POLICY_DB_URL` (default `jdbc:postgresql://localhost:5432/policy`); runtime `policy_runtime` / `POLICY_RUNTIME_DB_PASSWORD`; Flyway `policy_app` / `POLICY_DB_PASSWORD` |
+| `PolicyAttemptTimeoutMs` (800), `PolicyMaxRetries` (2) | `POLICY_DECISION_API_TOKEN` (required), `POLICY_ADMIN_API_TOKEN` (empty disables the management API) |
 | `PolicyDecisionTimeoutMs`: 100–30000, default 2000 | |
 | `ExposeOpenApi`: `true` in Development | |
 
@@ -121,7 +138,8 @@ Logs are structured JSON on stdout: the JSON console formatter for .NET, and ECS
 - [Service boundaries](docs/architecture/service-boundaries.md)
 - [Ledger domain](docs/architecture/ledger-domain.md): model, lifecycle, posting, concurrency, immutability, reversals
 - [Policy engine](docs/architecture/policy-engine.md): versions, rules, evaluation, decisions, idempotency, failure behaviour
+- [Service integration](docs/architecture/service-integration.md): approval sequence, retries, timeouts, failure mapping, evidence, authentication, correlation, outbox, health, Compose
 - [Contributor ownership and milestones](docs/architecture/contributor-ownership.md)
-- [ADRs](docs/adr/README.md): monorepo, ledger as source of truth, policy service, double entry and immutability, versioned contract, journal lifecycle, database-enforced invariants, money representation, immutable policy versions, deterministic evaluation, decision persistence and replay
+- [ADRs](docs/adr/README.md): monorepo, ledger as source of truth, policy service, double entry and immutability, versioned contract, journal lifecycle, database-enforced invariants, money representation, immutable policy versions, deterministic evaluation, decision persistence and replay, ledger–policy reliability, service authentication, transactional outbox
 - [Contract](contracts/README.md)
 - [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)

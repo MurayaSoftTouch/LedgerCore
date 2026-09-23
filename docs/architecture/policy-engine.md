@@ -169,21 +169,27 @@ HTTP requests add `correlationId` from `X-Correlation-Id`, or a generated one. R
 
 ## Database isolation
 
-- The service connects only to the `policy` database, as `policy_app`. It has no `CONNECT` on `ledger` (checked by `infra/docker/postgres/verify-isolation.sh`). Tests use the repository's real init script via Testcontainers.
-- Flyway migrates at startup (`clean` disabled, validate-on-migrate).
-- **What protects policy history is triggers and constraints only.** `policy_app` owns the schema, so it could disable those triggers. The ledger avoids this with a separate DML-only runtime role (ADR-007). An equivalent `policy_runtime` role is recommended, but it would change `infra/`, which @Ngetich-86 owns, so it was left for them rather than changed in this milestone.
+- The service connects only to the `policy` database. Neither policy role has `CONNECT` on `ledger` (checked by `infra/docker/postgres/verify-isolation.sh`). Tests use the repository's real init script via Testcontainers.
+- **Since Milestone 3, the service runs as `policy_runtime`**, which has DML only (Flyway V3). Flyway migrates at startup over a separate connection as the owner, `policy_app` (`clean` disabled, validate-on-migrate).
+  - `policy_runtime` can't run DDL, TRUNCATE or DELETE, and can't disable or replace the V2 guard triggers (`RuntimeRoleTests`).
+  - It has `UPDATE` on `policies` only so it can take the per-policy row lock; `policies_immutable` still refuses every update.
+- The owner, or a superuser, can still disable the triggers; see ADR-007's limitation, which applies here too.
 
 ## Security boundary
 
-This is an internal service-to-service API with **no authentication in Milestone 2**. Do not expose it outside a trusted network.
-- The evaluation API must eventually require an authenticated service identity (the ledger) — Milestone 3/5.
-- The management APIs change financial control logic and need stronger, administrative authorization in production, plus ideally four-eyes activation. Today `X-Actor-Id` is recorded but **client-asserted and unverified**.
-- Transport security (TLS, network policy) is a deployment responsibility until Milestone 3/5 hardening.
+Since Milestone 3 (ADR-013):
+- `POST /v1/policy-decisions` requires the ledger's bearer credential (`POLICY_DECISION_API_TOKEN`); without it the request gets `401`.
+- The management API requires a **separate** admin credential (`POLICY_ADMIN_API_TOKEN`), and is **disabled** (403) when none is configured.
+
+This is still a shared-secret boundary, not a mature one:
+- `X-Actor-Id` is recorded but **client-asserted and unverified**.
+- There are no per-user administrative roles and no four-eyes activation (Milestone 5).
+- Transport security (TLS, mTLS or workload identity, network policy) remains a deployment responsibility.
 - Springdoc's API docs and Swagger UI are enabled by default; disable them outside development.
 
-## Handoff to Milestone 3 (not implemented here)
+## Handoff to Milestone 3 (done in Milestone 3; see service-integration.md)
 
-These are changes on the ledger side and in integration, left for their owners. `services/ledger-api` was not modified in Milestone 2.
+These were the ledger-side and integration changes left for their owners. `services/ledger-api` was not modified in Milestone 2. All of them were delivered in Milestone 3 ([service-integration.md](service-integration.md)). The ledger records evidence in a separate append-only table rather than on the journal row, and sends contract 1.1.0.
 
 - **Ledger policy client** (@Ngetich-86, with @LMichy1):
   - send contract v1 exactly;
@@ -197,7 +203,7 @@ These are changes on the ledger side and in integration, left for their owners. 
 
 ## Known limitations
 
-- No authentication or authorization (above), and no `policy_runtime` role (above).
+- A shared-credential boundary only, with no user-level authorization (above).
 - No scheduled activation, effective-date ranges, FX-aware thresholds, or velocity/cumulative rules.
 - Decision history has no retention or archival policy.
 - The ledger doesn't call this service yet. The policy client, timeout handling and contract tests on the ledger side are Milestone 3.

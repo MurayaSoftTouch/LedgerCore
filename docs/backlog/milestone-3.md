@@ -27,7 +27,7 @@ Shared definition of done:
   - The consumer tests validate the ledger's serialized request against the request schema, and parse every response example.
 - **Dependencies.** Contract 1.0.1.
 - **Tests.** Provider `ContractComplianceTests`; consumer contract tests in `LedgerCore.Ledger.Api.Tests`.
-- **Status.** Planned.
+- **Status.** Done (committed locally; not pushed or reviewed).
 
 ## M3-02 .NET policy client
 
@@ -43,7 +43,7 @@ Shared definition of done:
   - An unknown `decision`, a mismatched `transactionId`, a missing field, or an `APPROVED` carrying reason codes → `CONTRACT_VIOLATION`.
 - **Dependencies.** M3-01.
 - **Tests.** Client tests against a stub HTTP handler, covering every status, body shape, timeout and retry count.
-- **Status.** Planned.
+- **Status.** Done (committed locally; not pushed or reviewed).
 
 ## M3-03 Ledger approval integration
 
@@ -60,7 +60,7 @@ Shared definition of done:
   - Nothing can set `APPROVED` without matching evidence (DB trigger).
 - **Dependencies.** M3-02, M3-04.
 - **Tests.** API tests with a stub client; DB-bypass tests.
-- **Status.** Planned.
+- **Status.** Done (committed locally; not pushed or reviewed).
 
 ## M3-04 Policy decision reference persistence
 
@@ -74,7 +74,7 @@ Shared definition of done:
   - A second, different decision for the same journal is refused.
 - **Dependencies.** M1 schema.
 - **Tests.** Raw-SQL guard tests; replay test.
-- **Status.** Planned.
+- **Status.** Done (committed locally; not pushed or reviewed).
 
 ## M3-05 Failure and timeout handling
 
@@ -87,7 +87,7 @@ Shared definition of done:
   - An unreachable policy service → `PENDING_APPROVAL`, and posting is refused.
 - **Dependencies.** M3-02, M3-03.
 - **Tests.** Client unit tests; a multi-service test with Toxiproxy cutting the response.
-- **Status.** Planned.
+- **Status.** Done at the ledger level: client tests, plus PostgreSQL tests with a stubbed policy service, including the lost-response case. The Toxiproxy multi-service scenario is pending with M3-09.
 
 ## M3-06 Runtime database-role hardening
 
@@ -102,8 +102,8 @@ Shared definition of done:
   - The service runs as `policy_runtime`.
   - The guards are unchanged.
 - **Dependencies.** M2 schema.
-- **Tests.** Raw-SQL privilege tests in `DatabaseGuardTests`; `verify-isolation.sh`.
-- **Status.** Planned.
+- **Tests.** Raw-SQL privilege tests in `RuntimeRoleTests`; `verify-isolation.sh`.
+- **Status.** Done (committed locally; not pushed or reviewed).
 
 ## M3-07 Docker multi-service integration
 
@@ -117,7 +117,7 @@ Shared definition of done:
   - A journal approved through Compose service DNS names.
 - **Dependencies.** M3-03, M3-06.
 - **Tests.** `tests/integration/compose-smoke.sh`.
-- **Status.** Planned.
+- **Status.** Done (committed locally; not pushed or reviewed).
 
 ## M3-08 Correlation and structured logging
 
@@ -131,7 +131,7 @@ Shared definition of done:
   - Credentials, payloads and connection strings are never logged.
 - **Dependencies.** M3-02.
 - **Tests.** Middleware tests; the stub client receives the id; a multi-service test reads the id from the policy decision.
-- **Status.** Planned.
+- **Status.** Done for the ledger (middleware, forwarding, evidence). The check that the id appears in both services' logs is pending with M3-09. Compose smoke confirmed it reaches the policy database.
 
 ## M3-09 Full integration tests
 
@@ -148,7 +148,7 @@ Shared definition of done:
   - cross-database boundary.
 - **Dependencies.** M3-03 to M3-08.
 - **Tests.** This item is the tests.
-- **Status.** Planned.
+- **Status.** Implemented; **verification pending**. The multi-service suite has not yet completed a run: the first run was interrupted by the D: disk emergency, and heavy runs stay blocked until D: has at least 15 GB free.
 
 ## M3-10 CI and documentation
 
@@ -163,4 +163,4 @@ Shared definition of done:
   - No claim that remote CI passed.
 - **Dependencies.** All of the above.
 - **Tests.** Quality gates.
-- **Status.** Planned.
+- **Status.** Implemented; CI has never run on GitHub, and the multi-service verification it depends on is pending (see M3-09).
