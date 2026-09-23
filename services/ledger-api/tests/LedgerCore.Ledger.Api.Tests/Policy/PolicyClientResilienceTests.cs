@@ -106,12 +106,37 @@ public sealed class PolicyClientResilienceTests
     }
 
     [Fact]
-    public async Task BusinessDecisionsAreNeverRetried()
+    public async Task RetriesResendTheSameTransaction()
+    {
+        var (result, handler) = await Evaluate((_, _) => Status(HttpStatusCode.ServiceUnavailable));
+
+        Assert.IsType<PolicyEvaluationResult.Failed>(result);
+        var bodies = handler.Received.Select(r => r.Body).ToArray();
+        Assert.Equal(3, bodies.Length);
+        // Same transactionId and fingerprint, so the policy service's idempotency returns one decision.
+        Assert.Single(bodies.Distinct());
+        Assert.Contains($"\"transactionId\":\"{TransactionId}\"", bodies[0], StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("REVIEW_REQUIRED", nameof(PolicyDecisionValue.ReviewRequired))]
+    [InlineData("REJECTED", nameof(PolicyDecisionValue.Rejected))]
+    public async Task BusinessDecisionsAreNeverRetried(string decision, string expected)
+    {
+        var body = ExampleResponse("response.review-required.valid.json").Replace("\"REVIEW_REQUIRED\"", $"\"{decision}\"", StringComparison.Ordinal);
+        var (result, handler) = await Evaluate((_, _) => Task.FromResult(StubHttpHandler.Json(HttpStatusCode.OK, body)));
+
+        Assert.Equal(Enum.Parse<PolicyDecisionValue>(expected), Assert.IsType<PolicyEvaluationResult.Decided>(result).Decision.Decision);
+        Assert.Equal(1, handler.Attempts);
+    }
+
+    [Fact]
+    public async Task ContractViolatingDecisionIsNotRetried()
     {
         var (result, handler) = await Evaluate((_, _) =>
-            Task.FromResult(StubHttpHandler.Json(HttpStatusCode.OK, ExampleResponse("response.review-required.valid.json"))));
+            Task.FromResult(StubHttpHandler.Json(HttpStatusCode.OK, ExampleResponse("response.rejected-without-reason.invalid.json"))));
 
-        Assert.Equal(PolicyDecisionValue.ReviewRequired, Assert.IsType<PolicyEvaluationResult.Decided>(result).Decision.Decision);
+        Assert.Equal(PolicyFailureKind.ContractViolation, Assert.IsType<PolicyEvaluationResult.Failed>(result).Kind);
         Assert.Equal(1, handler.Attempts);
     }
 
