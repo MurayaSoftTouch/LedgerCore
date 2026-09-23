@@ -1,0 +1,104 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ledger-api:
+    name: ledger-api (.NET)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/ledger-api
+    env:
+      DOTNET_NOLOGO: "1"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: services/ledger-api/global.json
+      - uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('services/ledger-api/**/*.csproj', 'services/ledger-api/Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: Restore
+        run: dotnet restore
+      - name: Format check
+        run: dotnet format --verify-no-changes --no-restore
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+      - name: Test
+        run: dotnet test --configuration Release --no-build --logger "trx;LogFileName=results.trx"
+
+  policy-service:
+    name: policy-service (Spring Boot)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/policy-service
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: services/policy-service/pom.xml
+      - name: Resolve dependencies
+        run: ./mvnw -B -ntp dependency:go-offline
+      - name: Format check
+        run: ./mvnw -B -ntp spotless:check
+      - name: Compile and test
+        run: ./mvnw -B -ntp verify
+
+  contracts:
+    name: contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Validate OpenAPI, schemas and examples
+        run: ./contracts/validate.sh
+
+  infra:
+    name: postgres (docker compose)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Start PostgreSQL
+        run: |
+          cp .env.example .env
+          docker compose up -d --wait --wait-timeout 120
+      - name: Verify database isolation
+        run: ./infra/docker/postgres/verify-isolation.sh
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs postgres
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
