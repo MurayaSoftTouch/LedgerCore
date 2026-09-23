@@ -1,6 +1,18 @@
 spring:
   application:
     name: policy-service
+  # The dedicated `policy` database, as its owner role (ADR-003). This service has no access to the
+  # ledger database. No password default is committed: set POLICY_DB_PASSWORD (see .env.example).
+  datasource:
+    url: ${POLICY_DB_URL:jdbc:postgresql://localhost:5432/policy}
+    username: ${POLICY_DB_USERNAME:policy_app}
+    password: ${POLICY_DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: ${POLICY_DB_POOL_SIZE:10}
+  # Forward-only, versioned migrations (db/migration). There is no ORM and no schema generation.
+  flyway:
+    clean-disabled: true
+    validate-on-migrate: true
 
 server:
   port: ${SERVER_PORT:8081}
@@ -8,7 +20,7 @@ server:
 
 ledgercore:
   policy:
-    contract-version: 1.0.0
+    contract-version: 1.0.1
     environment: ${LEDGERCORE_ENVIRONMENT:local}
 
 management:
@@ -20,6 +32,9 @@ management:
     health:
       probes:
         enabled: true
+      group:
+        readiness:
+          include: readinessState,db
   info:
     env:
       enabled: true
