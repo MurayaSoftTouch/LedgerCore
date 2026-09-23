@@ -1,0 +1,27 @@
+name: Technical task
+description: Infrastructure, tooling, refactoring or other work without user-facing behaviour.
+labels: ["type:chore"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What changes and why it is needed now.
+    validations: { required: true }
+  - type: textarea
+    id: approach
+    attributes:
+      label: Approach
+    validations: { required: false }
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      placeholder: |
+        - [ ] ...
+    validations: { required: true }
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+    validations: { required: false }

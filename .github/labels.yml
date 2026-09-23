@@ -1,0 +1,15 @@
+# Source of truth for repository labels. Apply with a label-sync tool or `gh label create`
+# (see docs/backlog/initial-backlog.md). Not yet applied to GitHub.
+- { name: "type:feature", color: "1d76db", description: "New capability" }
+- { name: "type:bug",     color: "d73a4a", description: "Incorrect behaviour" }
+- { name: "type:chore",   color: "cfd3d7", description: "Maintenance, tooling, refactoring" }
+- { name: "type:docs",    color: "0075ca", description: "Documentation only" }
+- { name: "area:ledger",      color: "5319e7", description: "ASP.NET ledger service" }
+- { name: "area:policy",      color: "0e8a16", description: "Spring Boot policy service" }
+- { name: "area:contracts",   color: "fbca04", description: "OpenAPI / JSON Schema contracts" }
+- { name: "area:database",    color: "006b75", description: "PostgreSQL schema, migrations, roles" }
+- { name: "area:integration", color: "c5def5", description: "Cross-service behaviour and tests" }
+- { name: "area:devops",      color: "bfdadc", description: "CI, Docker, environments" }
+- { name: "priority:p0", color: "b60205", description: "Blocks a milestone or breaks a financial invariant" }
+- { name: "priority:p1", color: "d93f0b", description: "Needed for the current milestone" }
+- { name: "priority:p2", color: "fef2c0", description: "Worth doing; not blocking" }

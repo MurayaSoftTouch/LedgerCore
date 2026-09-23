@@ -1,0 +1,45 @@
+name: Bug
+description: Something behaves incorrectly.
+labels: ["type:bug"]
+body:
+  - type: markdown
+    attributes:
+      value: "If the bug can post an unbalanced journal, mutate posted history or approve without a valid policy decision, label it `priority:p0`."
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behaviour
+    validations: { required: true }
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations: { required: true }
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Requests, payloads (redact real data) and environment.
+    validations: { required: true }
+  - type: dropdown
+    id: invariant
+    attributes:
+      label: Financial invariant affected?
+      options:
+        - "No"
+        - Balance (debits ≠ credits)
+        - Immutability of posted journals
+        - Fail-closed policy decision
+        - Duplicate posting / idempotency
+        - Partial financial state
+    validations: { required: true }
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / correlation ID
+      render: text
+  - type: textarea
+    id: version
+    attributes:
+      label: Version / commit
+    validations: { required: true }

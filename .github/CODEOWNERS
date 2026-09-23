@@ -1,0 +1,17 @@
+# Primary owners are requested for review automatically. See docs/architecture/contributor-ownership.md.
+# Later rules take precedence. Owners must have write access for GitHub to enforce these entries.
+
+*                              @LMichy1 @MurayaSoftTouch @Ngetich-86
+
+/services/ledger-api/          @LMichy1
+/services/policy-service/      @MurayaSoftTouch
+
+# Both sides of the contract plus the contract owner.
+/contracts/                    @Ngetich-86 @MurayaSoftTouch @LMichy1
+
+/tests/                        @Ngetich-86
+/infra/                        @Ngetich-86
+/docker-compose.yml            @Ngetich-86
+/.github/                      @Ngetich-86
+
+/docs/adr/                     @LMichy1 @MurayaSoftTouch @Ngetich-86
