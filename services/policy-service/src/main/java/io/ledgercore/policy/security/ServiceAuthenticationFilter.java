@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -32,8 +33,14 @@ import tools.jackson.databind.json.JsonMapper;
  *       configured.
  * </ul>
  *
- * Health, info and API docs stay unauthenticated. Credentials are compared in constant time over
- * SHA-256 digests and are never logged. This is not a substitute for workload identity or mTLS.
+ * Health, info and API docs stay unauthenticated; <b>every other path is refused</b> before it
+ * reaches Spring MVC (deny by default). Paths are classified on the servlet path, which the
+ * container has already decoded, normalized and stripped of path parameters. Matching the raw
+ * request URI let {@code /v1/policy-decisions;x=y} through unauthenticated, because MVC routes it
+ * to the decision endpoint while the raw URI matched no protected prefix (fixed in Milestone 5).
+ *
+ * <p>Credentials are compared in constant time over SHA-256 digests and are never logged or echoed.
+ * This is not a substitute for workload identity or mTLS.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
@@ -53,42 +60,75 @@ public class ServiceAuthenticationFilter extends OncePerRequestFilter {
     this.json = json;
   }
 
+  /** Which credential a path requires. */
+  enum Area {
+    PUBLIC,
+    DECISION,
+    ADMIN,
+    UNKNOWN
+  }
+
+  /**
+   * Classifies a container-normalized servlet path. Anything not listed is {@link Area#UNKNOWN}.
+   */
+  static Area classify(String path) {
+    if (path.equals("/actuator/health")
+        || path.startsWith("/actuator/health/")
+        || path.equals("/actuator/info")
+        || path.startsWith("/openapi/")) {
+      return Area.PUBLIC;
+    }
+    if (path.equals("/v1") || path.startsWith("/v1/")) {
+      return Area.DECISION;
+    }
+    if (path.equals("/api") || path.startsWith("/api/")) {
+      return Area.ADMIN;
+    }
+    return Area.UNKNOWN;
+  }
+
   @Override
   protected void doFilterInternal(
       HttpServletRequest request, HttpServletResponse response, FilterChain chain)
       throws ServletException, IOException {
-    var path = request.getRequestURI().substring(request.getContextPath().length());
-    if (path.equals("/v1/policy-decisions") || path.startsWith("/v1/policy-decisions/")) {
-      if (!presented(request, decisionDigest)) {
-        reject(
-            response,
-            path,
-            HttpStatus.UNAUTHORIZED,
-            "SERVICE_AUTHENTICATION_REQUIRED",
-            "A valid service credential is required.");
-        return;
+    var path =
+        request.getServletPath() + (request.getPathInfo() == null ? "" : request.getPathInfo());
+    switch (classify(path)) {
+      case PUBLIC -> chain.doFilter(request, response);
+      case DECISION -> {
+        if (presented(request, decisionDigest)) {
+          chain.doFilter(request, response);
+        } else {
+          reject(
+              response,
+              path,
+              HttpStatus.UNAUTHORIZED,
+              "SERVICE_AUTHENTICATION_REQUIRED",
+              "A valid service credential is required.");
+        }
       }
-    } else if (path.startsWith("/api/")) {
-      if (adminDigest == null) {
-        reject(
-            response,
-            path,
-            HttpStatus.FORBIDDEN,
-            "MANAGEMENT_API_DISABLED",
-            "The management API is disabled: no administrative credential is configured.");
-        return;
+      case ADMIN -> {
+        if (adminDigest == null) {
+          reject(
+              response,
+              path,
+              HttpStatus.FORBIDDEN,
+              "MANAGEMENT_API_DISABLED",
+              "The management API is disabled: no administrative credential is configured.");
+        } else if (presented(request, adminDigest)) {
+          chain.doFilter(request, response);
+        } else {
+          reject(
+              response,
+              path,
+              HttpStatus.UNAUTHORIZED,
+              "ADMIN_AUTHENTICATION_REQUIRED",
+              "A valid administrative credential is required.");
+        }
       }
-      if (!presented(request, adminDigest)) {
-        reject(
-            response,
-            path,
-            HttpStatus.UNAUTHORIZED,
-            "ADMIN_AUTHENTICATION_REQUIRED",
-            "A valid administrative credential is required.");
-        return;
-      }
+      case UNKNOWN ->
+          reject(response, path, HttpStatus.NOT_FOUND, "NOT_FOUND", "No such resource.");
     }
-    chain.doFilter(request, response);
   }
 
   private static boolean presented(HttpServletRequest request, byte[] expectedDigest) {
@@ -102,14 +142,20 @@ public class ServiceAuthenticationFilter extends OncePerRequestFilter {
   private void reject(
       HttpServletResponse response, String path, HttpStatus status, String code, String detail)
       throws IOException {
+    var loggedPath = path.length() > 200 ? path.substring(0, 200) : path;
     log.atWarn()
-        .addKeyValue("path", path)
+        .addKeyValue("path", loggedPath)
         .addKeyValue("code", code)
         .log("Request rejected by service authentication");
     var problem = ProblemDetail.forStatusAndDetail(status, detail);
     problem.setType(URI.create(TYPE_PREFIX + code));
     problem.setTitle(code);
-    problem.setInstance(URI.create(path));
+    // The path is client-controlled; omit it rather than fail on characters URI refuses.
+    try {
+      problem.setInstance(new URI(null, null, path, null));
+    } catch (URISyntaxException e) {
+      // no instance
+    }
     problem.setProperty("code", code);
     var correlationId = MDC.get(CorrelationIdFilter.MDC_KEY);
     if (correlationId != null) {

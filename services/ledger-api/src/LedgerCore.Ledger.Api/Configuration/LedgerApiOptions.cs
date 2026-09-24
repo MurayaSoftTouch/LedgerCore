@@ -41,4 +41,11 @@ internal sealed class LedgerApiOptions
     [Required]
     [MinLength(32)]
     public string PolicyServiceToken { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Unpublished outbox events older than this are reported as <c>AGING</c> by <c>/ops/outbox</c>
+    /// (Milestone 5). Between one second and seven days.
+    /// </summary>
+    [Range(1, 604_800)]
+    public int OutboxAgingThresholdSeconds { get; init; } = 300;
 }

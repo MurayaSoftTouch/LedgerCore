@@ -14,6 +14,9 @@ public sealed interface Rule
 
   int MAX_RULES_PER_VERSION = 100;
 
+  /** Upper bound on every list inside one rule (types, account ids, currencies). */
+  int MAX_LIST_ITEMS = 50;
+
   /** 1-based, unique within a version. Evaluation and reporting order; never row order. */
   int position();
 
