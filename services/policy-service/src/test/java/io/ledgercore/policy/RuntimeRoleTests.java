@@ -58,16 +58,31 @@ class RuntimeRoleTests extends PostgresIntegrationTest {
         "DELETE FROM policy_versions",
         "UPDATE policy_rules SET threshold = 0",
         "UPDATE policy_decisions SET decision = 'APPROVED'",
-        "INSERT INTO flyway_schema_history (installed_rank, description, type, script, installed_by, execution_time, success) VALUES (99, 'x', 'SQL', 'x', 'x', 0, true)"
+        "INSERT INTO flyway_schema_history (installed_rank, description, type, script, installed_by, execution_time, success) VALUES (99, 'x', 'SQL', 'x', 'x', 0, true)",
+        "DELETE FROM flyway_schema_history",
+        "SET session_replication_role = replica",
+        "TRUNCATE policy_decision_matches",
+        "DELETE FROM policy_decision_matches",
+        "UPDATE policy_decision_matches SET reason_code = reason_code",
+        "ALTER ROLE policy_runtime SUPERUSER",
+        "CREATE ROLE probe_role",
+        "GRANT policy_app TO policy_runtime"
       })
   void runtimeRoleCannotAlterSchemaDisableGuardsOrDestroyHistory(String sql) {
     assertThat(Sql.failsAsRuntime(sql).getSQLState()).isEqualTo(INSUFFICIENT_PRIVILEGE);
   }
 
   @Test
-  void runtimeRoleStillHitsTheGuardsWhereItHasPrivileges() {
+  void runtimeRoleStillHitsTheGuardsWhereItHasPrivileges() throws Exception {
     // UPDATE on policies is granted only to allow the per-policy row lock; the trigger forbids it.
-    Sql.assertGuard(Sql.failsAsRuntime("UPDATE policies SET name = 'renamed'"), "POLICY_IMMUTABLE");
+    // Row triggers need a row: target this test's own policy, so the result doesn't depend on
+    // which tests ran first (it silently updated nothing when run alone).
+    var scope = api().activePolicy(STANDARD_RULES);
+    Sql.assertGuard(
+        Sql.failsAsRuntime(
+            "UPDATE policies SET name = 'renamed' WHERE organization_id = ?",
+            scope.organizationId()),
+        "POLICY_IMMUTABLE");
   }
 
   @Test

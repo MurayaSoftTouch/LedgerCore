@@ -69,11 +69,11 @@ public final class ManagementContract {
       @NotNull String reasonCode,
       String currency,
       String threshold,
-      List<TransactionType> transactionTypes,
-      List<AccountType> accountTypes,
+      @Size(max = Rule.MAX_LIST_ITEMS) List<TransactionType> transactionTypes,
+      @Size(max = Rule.MAX_LIST_ITEMS) List<AccountType> accountTypes,
       EntrySide side,
-      List<UUID> accountIds,
-      List<String> allowedCurrencies) {}
+      @Size(max = Rule.MAX_LIST_ITEMS) List<UUID> accountIds,
+      @Size(max = Rule.MAX_LIST_ITEMS) List<String> allowedCurrencies) {}
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public record RuleResponse(
