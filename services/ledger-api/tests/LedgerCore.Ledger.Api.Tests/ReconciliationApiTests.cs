@@ -35,6 +35,12 @@ public sealed class ReconciliationApiTests(PostgresFixture db) : IDisposable
             await api.Http.GetAsync(new Uri($"/api/v1/ledgers/{ledger}/reconciliation", UriKind.Relative)), HttpStatusCode.OK);
 
         Assert.True(report["consistent"]!.GetValue<bool>());
+        Assert.Equal("HEALTHY", report["status"]!.GetValue<string>());
+        Assert.NotEqual(Guid.Empty, report["runId"]!.GetValue<Guid>());
+        Assert.Equal(["KES"], report["currenciesExamined"]!.AsArray().Select(c => c!.GetValue<string>()));
+        Assert.Empty(report["discrepancies"]!.AsArray());
+        Assert.False(report["discrepanciesTruncated"]!.GetValue<bool>());
+        Assert.Equal(0, report["legacyPostingsWithoutClaim"]!.GetValue<int>());
         var kes = report["currencies"]![0]!;
         Assert.Equal(("KES", 1, "250.00", "250.00"), (kes["currency"]!.GetValue<string>(), kes["postedJournals"]!.GetValue<int>(), kes["debits"]!.GetValue<string>(), kes["credits"]!.GetValue<string>()));
         Assert.Contains(report["accounts"]!.AsArray(), a => a!["net"]!.GetValue<string>() == "-250.00");

@@ -2,6 +2,7 @@ using LedgerCore.Ledger.Api.Application;
 using LedgerCore.Ledger.Api.Tests.Infrastructure;
 using LedgerCore.Ledger.Domain.Accounts;
 using LedgerCore.Ledger.Domain.Journals;
+using Microsoft.Extensions.Logging.Abstractions;
 using static LedgerCore.Ledger.Domain.Journals.EntryDirection;
 
 namespace LedgerCore.Ledger.Api.Tests;
@@ -13,7 +14,7 @@ public sealed class ReconciliationTests(PostgresFixture db)
     private async Task<ReconciliationReport> ReconcileAsync(Guid ledgerId)
     {
         await using var ctx = db.CreateRuntimeContext();
-        return await new LedgerReconciliation(ctx, TimeProvider.System).RunAsync(ledgerId, default);
+        return await new LedgerReconciliation(ctx, TimeProvider.System, NullLogger<LedgerReconciliation>.Instance).RunAsync(ledgerId, default);
     }
 
     private static decimal Net(ReconciliationReport report, Guid account) => report.Accounts.Single(a => a.AccountId == account).Net;
@@ -38,8 +39,8 @@ public sealed class ReconciliationTests(PostgresFixture db)
         var report = await ReconcileAsync(s.LedgerId);
 
         Assert.True(report.Consistent);
-        Assert.Empty(report.UnbalancedJournals);
-        Assert.Empty(report.MismatchedReversals);
+        Assert.Empty(report.JournalsIn(DiscrepancyCategory.UnbalancedJournal));
+        Assert.Empty(report.JournalsIn(DiscrepancyCategory.ReversalMismatch));
         var kes = Assert.Single(report.Currencies);
         Assert.Equal(("KES", 3, 150_000m, 150_000m, true), (kes.Currency, kes.PostedJournals, kes.Debits, kes.Credits, kes.Balanced));
         Assert.Equal(75_000.01m, Net(report, s.Bank));
@@ -65,7 +66,7 @@ public sealed class ReconciliationTests(PostgresFixture db)
         var after = await ReconcileAsync(s.LedgerId);
 
         Assert.True(after.Consistent);
-        Assert.Empty(after.MismatchedReversals);
+        Assert.Empty(after.JournalsIn(DiscrepancyCategory.ReversalMismatch));
         foreach (var account in s.Accounts.Values)
         {
             Assert.Equal(Net(before, account), Net(after, account));
@@ -141,9 +142,9 @@ public sealed class ReconciliationTests(PostgresFixture db)
         var report = await ReconcileAsync(s.LedgerId);
 
         Assert.False(report.Consistent);
-        Assert.Contains(healthy, report.UnbalancedJournals);
-        Assert.Contains(reversal.Id, report.UnbalancedJournals);
-        Assert.Equal([reversal.Id], report.MismatchedReversals);
+        Assert.Contains(healthy, report.JournalsIn(DiscrepancyCategory.UnbalancedJournal));
+        Assert.Contains(reversal.Id, report.JournalsIn(DiscrepancyCategory.UnbalancedJournal));
+        Assert.Equal([reversal.Id], report.JournalsIn(DiscrepancyCategory.ReversalMismatch));
         var kes = Assert.Single(report.Currencies);
         Assert.False(kes.Balanced);
         Assert.Equal(kes.Credits - 1m, kes.Debits);

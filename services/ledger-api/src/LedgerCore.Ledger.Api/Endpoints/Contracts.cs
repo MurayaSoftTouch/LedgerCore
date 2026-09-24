@@ -145,12 +145,25 @@ internal sealed record CurrencyTotalsResponse(string Currency, int PostedJournal
 
 internal sealed record AccountMovementResponse(Guid AccountId, string Code, string Currency, string Debits, string Credits, string Net);
 
-/// <summary>The ledger reconciliation report. Amounts are decimal strings in each currency's minor units.</summary>
+internal sealed record DiscrepancyResponse(string Category, Guid? JournalId, Guid? AccountId, string? Currency);
+
+/// <summary>
+/// The ledger reconciliation report. Amounts are decimal strings in each currency's minor units.
+/// <c>status</c> is <c>HEALTHY</c> or <c>DISCREPANCY</c>; a scan that could not complete is an error
+/// response instead. <c>consistent</c>, <c>unbalancedJournals</c> and <c>mismatchedReversals</c> are
+/// kept from Milestone 4.
+/// </summary>
 internal sealed record ReconciliationResponse(
+    Guid RunId,
     Guid LedgerId,
     DateTimeOffset GeneratedAt,
+    string Status,
     bool Consistent,
+    IReadOnlyList<string> CurrenciesExamined,
     IReadOnlyList<CurrencyTotalsResponse> Currencies,
+    IReadOnlyList<DiscrepancyResponse> Discrepancies,
+    bool DiscrepanciesTruncated,
+    int LegacyPostingsWithoutClaim,
     IReadOnlyList<Guid> UnbalancedJournals,
     IReadOnlyList<Guid> MismatchedReversals,
     IReadOnlyList<AccountMovementResponse> Accounts)
@@ -160,12 +173,18 @@ internal sealed record ReconciliationResponse(
         static string Amount(decimal value, string currency) => AmountText.Format(value, Currency.FromCode(currency).MinorUnits);
 
         return new ReconciliationResponse(
+            r.RunId,
             r.LedgerId,
             r.GeneratedAt,
+            EnumText.ToText(r.Status),
             r.Consistent,
+            [.. r.Currencies.Select(c => c.Currency)],
             [.. r.Currencies.Select(c => new CurrencyTotalsResponse(c.Currency, c.PostedJournals, Amount(c.Debits, c.Currency), Amount(c.Credits, c.Currency), c.Balanced))],
-            r.UnbalancedJournals,
-            r.MismatchedReversals,
+            [.. r.Discrepancies.Select(d => new DiscrepancyResponse(EnumText.ToText(d.Category), d.JournalId, d.AccountId, d.Currency))],
+            r.DiscrepanciesTruncated,
+            r.LegacyPostingsWithoutClaim,
+            r.JournalsIn(DiscrepancyCategory.UnbalancedJournal),
+            [.. r.JournalsIn(DiscrepancyCategory.ReversalMismatch), .. r.JournalsIn(DiscrepancyCategory.ReversalOriginalNotPosted)],
             [.. r.Accounts.Select(a => new AccountMovementResponse(
                 a.AccountId, a.Code, a.Currency, Amount(a.Debits, a.Currency), Amount(a.Credits, a.Currency), Amount(a.Net, a.Currency)))]);
     }
