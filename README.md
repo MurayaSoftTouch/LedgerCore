@@ -12,9 +12,18 @@ The core guarantees:
 - every posted journal balances (**enforced**: domain model and PostgreSQL trigger);
 - posted history is immutable, and corrections use reversals (**enforced**: domain, database triggers, least-privilege runtime role);
 - a policy decision that can't be trusted never approves anything (fail closed; designed in ADR-005, implemented in Milestone 3);
-- retries never double-post, and failures never leave partial state (posting is one locked transaction; command idempotency keys are Milestone 4).
+- retries never double-post, and failures never leave partial state (**enforced**: posting is one locked transaction, and `post` / `reverse` require an `Idempotency-Key` whose claim the database requires; Milestone 4).
 
-> **Status: Milestone 3 (integration).** The ledger obtains every approval from the policy service. It uses a typed client with bounded retries, keeps journals `PENDING_APPROVAL` on any failure (fail closed), records each decision as append-only evidence that the database requires, and writes a `JournalPosted` outbox event with each posting. Service calls are authenticated with shared credentials, correlation ids span both services, and both run as least-privilege database roles. Docker Compose runs the whole stack. See [service integration](docs/architecture/service-integration.md) and the [Milestone 3 backlog](docs/backlog/milestone-3.md).
+> **Status: Milestone 4 (posting hardening).**
+> - `post` and `reverse` are idempotent: a required `Idempotency-Key` header, and replays built from persisted state.
+> - Concurrent and conflicting requests are decided by PostgreSQL.
+> - Posting is bound in the database to its claim and to the journal's own `APPROVED` decision.
+> - The audit records the authorizing decision and the key.
+> - A reconciliation report recomputes the ledger from posted entries.
+>
+> See [posting idempotency](docs/architecture/posting-idempotency.md), [ADR-015](docs/adr/ADR-015-idempotent-posting-and-reversal.md) and the [Milestone 4 backlog](docs/backlog/milestone-4.md).
+>
+> **Milestone 3 (integration).** The ledger obtains every approval from the policy service. It uses a typed client with bounded retries, keeps journals `PENDING_APPROVAL` on any failure (fail closed), records each decision as append-only evidence that the database requires, and writes a `JournalPosted` outbox event with each posting. Service calls are authenticated with shared credentials, correlation ids span both services, and both run as least-privilege database roles. Docker Compose runs the whole stack. See [service integration](docs/architecture/service-integration.md) and the [Milestone 3 backlog](docs/backlog/milestone-3.md).
 >
 > **Milestone 1 (ledger domain).** `ledger-api` implements ledgers, a chart of accounts, journals with double-entry validation, the ADR-006 lifecycle, transactional posting, and reversals, persisted in PostgreSQL with database-enforced invariants.
 >
@@ -138,6 +147,7 @@ Logs are structured JSON on stdout: the JSON console formatter for .NET, and ECS
 - [Service boundaries](docs/architecture/service-boundaries.md)
 - [Ledger domain](docs/architecture/ledger-domain.md): model, lifecycle, posting, concurrency, immutability, reversals
 - [Policy engine](docs/architecture/policy-engine.md): versions, rules, evaluation, decisions, idempotency, failure behaviour
+- [Posting idempotency](docs/architecture/posting-idempotency.md): idempotency keys, concurrency, approval binding, reconciliation, failure injection
 - [Service integration](docs/architecture/service-integration.md): approval sequence, retries, timeouts, failure mapping, evidence, authentication, correlation, outbox, health, Compose
 - [Contributor ownership and milestones](docs/architecture/contributor-ownership.md)
 - [ADRs](docs/adr/README.md): monorepo, ledger as source of truth, policy service, double entry and immutability, versioned contract, journal lifecycle, database-enforced invariants, money representation, immutable policy versions, deterministic evaluation, decision persistence and replay, ledger–policy reliability, service authentication, transactional outbox

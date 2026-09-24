@@ -37,7 +37,7 @@
   - A missing, malformed or oversized key → `400`.
 - **Dependencies.** Milestone 1 posting; Milestone 3 outbox.
 - **Tests.** API and PostgreSQL tests for the first request, replay, unknown outcome and header validation.
-- **Status.** Planned.
+- **Status.** Done and verified locally (2026-09-24): `PostingIdempotencyTests`, `IdempotencyApiTests`.
 
 ## M4-02 Idempotency conflict handling
 
@@ -51,7 +51,7 @@
   - The fingerprint fields are documented.
 - **Dependencies.** M4-01.
 - **Tests.** Conflict on a different journal, a different actor, and a different reversal description.
-- **Status.** Planned.
+- **Status.** Done and verified locally (2026-09-24).
 
 ## M4-03 Posting concurrency hardening
 
@@ -66,7 +66,7 @@
   - The same key on two journals concurrently → one wins, the other gets `409 IDEMPOTENCY_CONFLICT`, and that journal stays postable.
 - **Dependencies.** M4-01.
 - **Tests.** Latch-started concurrent tests on real PostgreSQL; a paused-commit race test.
-- **Status.** Planned.
+- **Status.** Done and verified locally (2026-09-24): 8-way concurrency tests and the paused-commit race test.
 
 ## M4-04 Approval-evidence binding
 
@@ -84,7 +84,7 @@
   - Posting succeeds while the policy service is down.
 - **Dependencies.** Milestone 3 evidence.
 - **Tests.** Database guard tests, approval tests, and a multi-service test with the policy service cut off.
-- **Status.** Planned.
+- **Status.** Done and verified locally (2026-09-24): `ApprovalEvidenceBindingTests`, and the multi-service `PostingIsIdempotentAndNeedsNoPolicyServiceOnceApproved`.
 
 ## M4-05 Reversal idempotency
 
@@ -100,7 +100,7 @@
   - The original journal is never written.
 - **Dependencies.** M4-01, M4-02.
 - **Tests.** Replay, conflict, concurrency and an original-unchanged check against PostgreSQL.
-- **Status.** Planned.
+- **Status.** Done and verified locally (2026-09-24): `ReversalIdempotencyTests`.
 
 ## M4-06 Reversal/approval interaction
 
@@ -114,7 +114,7 @@
   - There is no test-only bypass.
 - **Dependencies.** M4-05.
 - **Tests.** Reversal approval tests with the stub policy client.
-- **Status.** Planned.
+- **Status.** Done and verified locally (2026-09-24). This is the existing ADR-006 behaviour, confirmed rather than newly decided.
 
 ## M4-07 Ledger reconciliation
 
@@ -132,7 +132,7 @@
   - Both journals remain visible.
 - **Dependencies.** Milestone 1 balances.
 - **Tests.** Reconciliation tests against PostgreSQL.
-- **Status.** Planned.
+- **Status.** Done and verified locally (2026-09-24): `ReconciliationTests`, `ReconciliationApiTests`.
 
 ## M4-08 Audit completeness
 
@@ -146,7 +146,7 @@
   - A replay adds no audit rows.
 - **Dependencies.** M4-01, M4-04, M4-05.
 - **Tests.** Audit assertions in the posting and reversal tests.
-- **Status.** Planned.
+- **Status.** Done and verified locally (2026-09-24).
 
 ## M4-09 Failure injection
 
@@ -163,7 +163,7 @@
   - No key is ever left unusable.
 - **Dependencies.** M4-01 to M4-05.
 - **Tests.** Command and commit interceptors against PostgreSQL.
-- **Status.** Planned.
+- **Status.** Done and verified locally (2026-09-24): failures injected at the claim insert, the posting write, the outbox insert and commit, and for reversal at the claim, the submit and commit.
 
 ## M4-10 Documentation and verification
 
@@ -178,4 +178,26 @@
   - No claim that remote CI passed.
 - **Dependencies.** All of the above.
 - **Tests.** The quality gates.
-- **Status.** Planned.
+- **Status.** Done: `posting-idempotency.md`, ADR-015, the ledger domain doc, README, and the harness and smoke script. Verified locally; **remote CI has never run**.
+
+---
+
+## Verification record (local, 2026-09-24)
+
+Run on the developer machine (WSL2, Docker 29.1.3). The clock was checked before each database run (no wall-clock jumps). **Remote CI has not run.**
+
+| Gate | Result |
+| --- | --- |
+| Ledger domain tests | 68 / 68 passed |
+| Ledger API tests (PostgreSQL, policy client, consumer contract) | 252 / 252 passed (189 before Milestone 4, 63 new); build 0 warnings; `dotnet format` clean |
+| Policy service (`./mvnw clean spotless:check verify`) | 235 / 235 passed; Spotless clean (unchanged service) |
+| Contract (`contracts/validate.sh`, 1.1.0) | OpenAPI lint clean; 2 schemas compile; 7 / 7 examples as expected (unchanged) |
+| Database isolation (`verify-isolation.sh`) | 10 / 10 passed |
+| Multi-service suite (`tests/integration`) | 14 / 14 passed (13 from Milestone 3, 1 new) |
+| Compose smoke (`compose-smoke.sh`) | passed, against images built from this branch; the migration applied to the persistent Compose database |
+
+Found and fixed during implementation:
+- **The first response of an idempotent command disagreed with its replay.** The first response came from the in-memory journal (100 ns timestamps), while PostgreSQL stores microseconds. Responses are now read back from the database.
+- **A foreign key from the new audit column to the evidence table made PostgreSQL refuse `TRUNCATE` with its own error**, pre-empting the evidence table's `LEDGER_HISTORY_IMMUTABLE` guard. The foreign key was dropped; only the audit trigger writes that column, copied from the immutable evidence row.
+
+Storage: D: was 15.42 GB free before the multi-service suite and 14.36 GB after (CAUTION). No heavy operation was started after that. The Compose smoke run reused the images the suite had built.
