@@ -43,7 +43,7 @@ Shared definition of done:
   - Nothing is ever modified.
   - The query count does not grow with the size of the data.
 - **Tests.** Reconciliation tests (PostgreSQL); a query-count and performance test.
-- **Status.** Planned.
+- **Status.** Done and verified locally (2026-09-24): `ReconciliationDiscrepancyTests` (12), `ReconciliationTests`, `ReconciliationApiTests`. On the real Compose data, 5 Milestone 3 ledgers reconcile `HEALTHY` with 1 legacy posting each.
 
 ## M5-02 Operational health model
 
@@ -57,7 +57,7 @@ Shared definition of done:
   - A missing or unmigrated schema → ledger unready.
   - A policy outage → ledger ready, dependencies `Degraded`.
 - **Tests.** Health tests (PostgreSQL); multi-service.
-- **Status.** Planned.
+- **Status.** Done and verified locally (2026-09-24): `OperationsTests` and the multi-service suite.
 
 ## M5-03 Structured audit and observability
 
@@ -71,7 +71,7 @@ Shared definition of done:
   - The fields are present in the JSON output.
   - No raw idempotency keys, bodies or credentials appear in logs.
 - **Tests.** Log-capture tests.
-- **Status.** Planned.
+- **Status.** Done and verified locally (2026-09-24): `SecretRedactionTests` and `OperationsTests`.
 
 ## M5-04 Security hardening
 
@@ -87,7 +87,7 @@ Shared definition of done:
   - Errors never echo bodies, SQL or stack traces.
   - The runtime roles can't run DDL, disable triggers, truncate history or mutate immutable rows.
 - **Tests.** Limit tests, error-body tests and runtime-role probes on both services.
-- **Status.** Planned.
+- **Status.** Done and verified locally (2026-09-24): `OperationsTests`, `HttpHardeningTests`, `LedgerRuntimeRoleTests` (32 probes), `RuntimeRoleTests` (+8). Dependency review in SECURITY.md.
 
 ## M5-05 Administrative API protection
 
@@ -103,7 +103,7 @@ Shared definition of done:
   - Neither credential works on the other's API.
   - With no admin credential, management stays disabled.
 - **Tests.** A RANDOM_PORT authentication test.
-- **Status.** Planned.
+- **Status.** Done and verified locally (2026-09-24). The bypass was confirmed on the running stack before the fix (the management read returned 200 with no credential). After the fix both variants return 401 on the running stack, and `HttpAuthenticationBoundaryTests` passes 29/29 (7 reproduced bypasses against the old filter).
 
 ## M5-06 Dependency degradation behavior
 
@@ -116,7 +116,7 @@ Shared definition of done:
   - Pool exhaustion → `503`.
   - A schema mismatch → unready.
 - **Tests.** API tests; multi-service tests.
-- **Status.** Planned.
+- **Status.** Done and verified locally (2026-09-24). This also covers rejected database credentials (class 28) and a missing database.
 
 ## M5-07 Failure simulation
 
@@ -127,7 +127,7 @@ Shared definition of done:
   - the existing outage, contract-violation and credential scenarios kept.
 - **Acceptance criteria.** Every simulation passes, and state is correct after recovery.
 - **Tests.** `tests/integration`.
-- **Status.** Planned.
+- **Status.** Done and verified locally (2026-09-24): `FailureSimulationTests` (3), plus the existing outage, contract-violation and credential scenarios.
 
 ## M5-08 Outbox operational visibility
 
@@ -141,7 +141,7 @@ Shared definition of done:
   - The counts and ages match the data.
   - The threshold is configurable and validated.
 - **Tests.** API tests (PostgreSQL).
-- **Status.** Planned.
+- **Status.** Done and verified locally (2026-09-24): `OperationsTests`. The live stack shows `AGING` with 7 pending events, as expected with no publisher.
 
 ## M5-09 CI and release diagnostics
 
@@ -153,7 +153,7 @@ Shared definition of done:
   - actionlint is clean.
   - No secrets appear in the uploaded paths.
 - **Tests.** actionlint.
-- **Status.** Planned.
+- **Status.** Done: actionlint is clean. The steps have **never run on GitHub**.
 
 ## M5-10 Documentation and verification
 
@@ -167,4 +167,33 @@ Shared definition of done:
 - **Acceptance criteria.**
   - The docs match the code.
   - No claim that remote CI passed.
-- **Status.** Planned.
+- **Status.** Done: `operational-hardening.md`, ADR-016, README, SECURITY.md, the ownership table.
+
+---
+
+## Verification record (local, 2026-09-24)
+
+This ran on the developer machine (WSL2, Docker 29.1.3). The clock was checked before and after each database run, with no jumps and Windows−WSL within about 0.2 s. **Remote CI has not run.**
+
+| Gate | Result |
+| --- | --- |
+| Ledger domain tests | 68 / 68 passed |
+| Ledger API tests | 311 / 311 passed (252 before Milestone 5, 59 new); build 0 warnings; `dotnet format` clean |
+| Policy service (`./mvnw clean spotless:check verify`) | 277 / 277 passed (235 before, 42 new); Spotless clean |
+| Contract (`contracts/validate.sh`, 1.1.0) | OpenAPI lint clean; 2 schemas; 7 / 7 examples as expected (unchanged) |
+| Database isolation | 10 / 10 passed |
+| Multi-service suite | 17 / 17 passed (14 before, 3 new failure simulations) |
+| Compose smoke | passed, against images built from this branch; the path bypass is closed on the running stack |
+| actionlint | clean |
+| Dependencies | .NET: no known-vulnerable packages (nuget.org). Maven: update check only; no CVE scanner in the stack |
+
+Defects found and fixed:
+1. **Policy-service authentication bypass (security, critical).** Path-parameter variants reached the decision endpoint and the management API with no credential (`84bae74`).
+2. **Unbounded lists inside policy rules** (`a8ec8bf`).
+3. **A 30 s Hikari connection timeout.** Every policy request and probe hung during a database outage (`0632bfe`).
+4. **Database outages and rejected database credentials surfaced as `500`** without a code (`e1898d8`, `22dc1d7`).
+5. **`runtimeRoleStillHitsTheGuardsWhereItHasPrivileges` depended on test order** (`a8ec8bf`).
+
+Storage:
+- D: was 14.36 GB at the start. 45 unused LedgerCore build images were removed (5.47 GB in Linux), then the VHDX was compacted, bringing D: to 20.00 GB.
+- The multi-service rebuild then used 3.50 GB, leaving D: at 16.41 GB (ACCEPTABLE).

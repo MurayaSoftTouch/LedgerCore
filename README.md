@@ -14,7 +14,17 @@ The core guarantees:
 - a policy decision that can't be trusted never approves anything (fail closed; designed in ADR-005, implemented in Milestone 3);
 - retries never double-post, and failures never leave partial state (**enforced**: posting is one locked transaction, and `post` / `reverse` require an `Idempotency-Key` whose claim the database requires; Milestone 4).
 
-> **Status: Milestone 4 (posting hardening).**
+> **Status: Milestone 5 (operational hardening).**
+> - Reconciliation reports categorized discrepancies with a run id and status, and tells legacy history from corruption.
+> - Readiness includes the schema, and dependency failures degrade predictably: a database outage is `503`, and a policy outage keeps the ledger ready.
+> - `/ops/outbox` shows how many events wait, and for how long.
+> - Requests, commands, policy calls and reconciliation runs are logged as structured JSON, with no secrets (proven by tests).
+> - Request sizes are bounded, and both runtime database roles pass destructive-privilege probes.
+> - A policy-service authentication bypass (path parameters) was found and fixed.
+>
+> See [operational hardening](docs/architecture/operational-hardening.md), [ADR-016](docs/adr/ADR-016-operational-health-and-degradation.md) and the [Milestone 5 backlog](docs/backlog/milestone-5.md).
+>
+> **Milestone 4 (posting hardening).**
 > - `post` and `reverse` are idempotent: a required `Idempotency-Key` header, and replays built from persisted state.
 > - Concurrent and conflicting requests are decided by PostgreSQL.
 > - Posting is bound in the database to its claim and to the journal's own `APPROVED` decision.
@@ -148,6 +158,7 @@ Logs are structured JSON on stdout: the JSON console formatter for .NET, and ECS
 - [Ledger domain](docs/architecture/ledger-domain.md): model, lifecycle, posting, concurrency, immutability, reversals
 - [Policy engine](docs/architecture/policy-engine.md): versions, rules, evaluation, decisions, idempotency, failure behaviour
 - [Posting idempotency](docs/architecture/posting-idempotency.md): idempotency keys, concurrency, approval binding, reconciliation, failure injection
+- [Operational hardening](docs/architecture/operational-hardening.md): health, degradation, reconciliation operations, outbox visibility, logging, security boundaries, troubleshooting
 - [Service integration](docs/architecture/service-integration.md): approval sequence, retries, timeouts, failure mapping, evidence, authentication, correlation, outbox, health, Compose
 - [Contributor ownership and milestones](docs/architecture/contributor-ownership.md)
 - [ADRs](docs/adr/README.md): monorepo, ledger as source of truth, policy service, double entry and immutability, versioned contract, journal lifecycle, database-enforced invariants, money representation, immutable policy versions, deterministic evaluation, decision persistence and replay, ledger–policy reliability, service authentication, transactional outbox
