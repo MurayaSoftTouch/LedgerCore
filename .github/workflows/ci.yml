@@ -44,6 +44,15 @@ jobs:
       # Integration tests start PostgreSQL 18.6 through Testcontainers (Docker is available on ubuntu-latest).
       - name: Test
         run: dotnet test --configuration Release --no-build --logger "trx;LogFileName=results.trx"
+      # Explicit paths only: test results, never the workspace (no .env, no secrets).
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: ledger-api-test-results
+          path: services/ledger-api/tests/**/TestResults/*.trx
+          if-no-files-found: ignore
+          retention-days: 7
 
   policy-service:
     name: policy-service (Spring Boot)
@@ -69,6 +78,16 @@ jobs:
       # Integration and contract tests start PostgreSQL 18.6 through Testcontainers (Docker is available on ubuntu-latest).
       - name: Compile and test
         run: ./mvnw -B -ntp verify
+      - name: Upload test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: policy-service-test-reports
+          path: |
+            services/policy-service/target/surefire-reports/
+            services/policy-service/target/failsafe-reports/
+          if-no-files-found: ignore
+          retention-days: 7
 
   contracts:
     name: contracts
@@ -129,14 +148,35 @@ jobs:
       # repository init script, and puts Toxiproxy between the ledger and the policy service.
       - name: Multi-service tests
         working-directory: tests/integration
-        run: dotnet test --logger "console;verbosity=normal"
+        run: dotnet test --logger "console;verbosity=normal" --logger "trx;LogFileName=integration.trx"
       - name: Compose smoke test
         run: |
           cp .env.example .env
           ./tests/integration/compose-smoke.sh --build
-      - name: Compose logs on failure
+      # Diagnostics go to a dedicated directory; .env and the workspace are never uploaded.
+      # Service logs contain no credentials (checked by SecretRedactionTests and the multi-service suite).
+      - name: Collect diagnostics on failure
         if: failure()
-        run: docker compose logs --no-color ledger-migrate policy-service ledger-api postgres
+        run: |
+          mkdir -p diagnostics
+          docker compose ps --all > diagnostics/compose-ps.txt 2>&1 || true
+          for c in $(docker compose ps --all --quiet 2>/dev/null); do
+            docker inspect --format '{{.Name}} {{.State.Status}} exit={{.State.ExitCode}} health={{if .State.Health}}{{.State.Health.Status}}{{json .State.Health.Log}}{{end}}' "$c" >> diagnostics/container-health.txt 2>&1 || true
+          done
+          for s in postgres ledger-migrate policy-service ledger-api; do
+            docker compose logs --no-color "$s" > "diagnostics/$s.log" 2>&1 || true
+          done
+          cat diagnostics/compose-ps.txt diagnostics/container-health.txt || true
+      - name: Upload diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: integration-diagnostics
+          path: |
+            diagnostics/
+            tests/integration/**/TestResults/*.trx
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Tear down
         if: always()
         run: docker compose down -v
