@@ -27,8 +27,8 @@ Ownership means accountability for a design and for reviewing changes to it. It 
 | # | Milestone | Planned primary | Supporting | Status |
 | --- | --- | --- | --- | --- |
 | 0 | Repository foundation | @MurayaSoftTouch (planned) → **@LMichy1 (actual)** | — | Complete locally |
-| 1 | Ledger domain foundation | @LMichy1 | — | Next |
-| 2 | Policy service | @MurayaSoftTouch | — | Planned |
+| 1 | Ledger domain foundation | @LMichy1 | — | Complete locally on `feat/m1-ledger-domain` (not pushed; awaiting review) |
+| 2 | Policy service | @MurayaSoftTouch | — | Next |
 | 3 | Cross-service reliability | @Ngetich-86 | — | Planned |
 | 4 | Posting, reversal and idempotency | @LMichy1 | @Ngetich-86 | Planned |
 | 5 | Reconciliation, observability and security | @Ngetich-86 | @MurayaSoftTouch | Planned |

@@ -20,7 +20,7 @@
 | Posting and reversal | **owns** | — |
 | Approval rules and versions | — | **owns** |
 | Approval decision | requests; records `decisionId` and `policyVersion` | **produces** |
-| Database | `ledger` (role `ledger_app`) | `policy` (role `policy_app`) |
+| Database | `ledger` (owner `ledger_app`; runtime `ledger_runtime`, see ADR-007) | `policy` (role `policy_app`) |
 | Contract role | client | server |
 
 ## Rules
@@ -30,11 +30,11 @@
 3. If the policy service can't give a trustworthy decision, the ledger fails closed (ADR-005).
 4. The central invariants (balanced postings, immutable posted history, reversals for corrections) are in ADR-004. The lifecycle is in ADR-006.
 
-## Endpoints in Milestone 0
+## Operational endpoints
 
 | Service | Liveness | Readiness | OpenAPI |
 | --- | --- | --- | --- |
-| ledger-api | `GET /health/live` | `GET /health/ready` | `GET /openapi/v1.json` (Development, or `Ledger:ExposeOpenApi=true`) |
+| ledger-api | `GET /health/live` | `GET /health/ready` (database check) | `GET /openapi/v1.json` (Development, or `Ledger:ExposeOpenApi=true`) |
 | policy-service | `GET /actuator/health/liveness` | `GET /actuator/health/readiness` | `GET /openapi/v3/api-docs` |
 
-The policy service also exposes `GET /actuator/info`, which reports the contract version.
+The policy service also exposes `GET /actuator/info`, which reports the contract version. The ledger's business API is described in [ledger-domain.md](ledger-domain.md#http-api-milestone-1).
