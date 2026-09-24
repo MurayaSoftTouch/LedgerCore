@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # End-to-end smoke test of the Docker Compose stack (Milestone 3): all services healthy, then one
 # journal approved by the real policy service over Compose DNS (ledger-api -> policy-service),
-# posted, and its JournalPosted outbox event present.
+# posted (and the idempotent retry replayed), and its JournalPosted outbox event present once.
 #
 #   ./tests/integration/compose-smoke.sh          # uses an already running stack, or starts one
 #   ./tests/integration/compose-smoke.sh --build  # rebuild images first
@@ -52,9 +52,14 @@ version=$(echo "$submitted" | json '(d.get("policyDecision") or {}).get("policyV
 [[ "$status" == "APPROVED" && "$version" == "smoke-$run@1" ]] || fail "submit: $submitted"
 ok "submitted -> $status by $version"
 
-posted=$(curl -fsS -X POST "${H[@]}" "$LEDGER/api/v1/ledgers/$ledger/journals/$journal/post" | json 'd["status"]')
+# post is idempotent (Milestone 4): the same Idempotency-Key replays the original result.
+post_key="smoke-post-$run"
+posted=$(curl -fsS -X POST "${H[@]}" -H "Idempotency-Key: $post_key" "$LEDGER/api/v1/ledgers/$ledger/journals/$journal/post" | json 'd["status"]')
 [[ "$posted" == "POSTED" ]] || fail "post: $posted"
 ok "posted"
+replayed=$(curl -fsS -o /dev/null -D - -X POST "${H[@]}" -H "Idempotency-Key: $post_key" "$LEDGER/api/v1/ledgers/$ledger/journals/$journal/post" | tr -d '\r' | grep -i '^idempotency-replayed:' | awk '{print $2}')
+[[ "$replayed" == "true" ]] || fail "post retry was not replayed"
+ok "post retry replayed"
 
 events=$(docker compose exec -T postgres psql -U "$POSTGRES_SUPERUSER" -d ledger -tAc \
   "SELECT count(*) FROM outbox_events WHERE aggregate_id = '$journal' AND event_type = 'JournalPosted'")
