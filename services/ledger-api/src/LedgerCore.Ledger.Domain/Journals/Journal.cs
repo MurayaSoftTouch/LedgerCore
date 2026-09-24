@@ -26,6 +26,9 @@ public sealed class Journal
 
     public Currency Currency { get; private set; } = null!;
 
+    /// <summary>Business classification for approval policy. Immutable.</summary>
+    public JournalType Type { get; private set; }
+
     public string Description { get; private set; } = null!;
 
     /// <summary>Caller-supplied reference, unique per ledger, so a retried create cannot duplicate a journal.</summary>
@@ -65,6 +68,27 @@ public sealed class Journal
     public static Journal CreateDraft(
         Guid ledgerId,
         Currency currency,
+        JournalType type,
+        string description,
+        string? externalReference,
+        string actor,
+        DateTimeOffset now)
+    {
+        if (Guard.Defined(type, "transactionType") == JournalType.Reversal)
+        {
+            throw new LedgerDomainException(
+                DomainErrorKind.Invalid,
+                "JOURNAL_TYPE_RESERVED",
+                "REVERSAL journals are created only by reversing a posted journal.");
+        }
+
+        return New(ledgerId, currency, type, description, externalReference, actor, now);
+    }
+
+    private static Journal New(
+        Guid ledgerId,
+        Currency currency,
+        JournalType type,
         string description,
         string? externalReference,
         string actor,
@@ -77,6 +101,7 @@ public sealed class Journal
             Id = Guid.CreateVersion7(now),
             LedgerId = ledgerId,
             Currency = currency,
+            Type = type,
             Description = Guard.Text(description, "description", 500),
             ExternalReference = Guard.OptionalText(externalReference, "externalReference", 128),
             Status = JournalStatus.Draft,
@@ -120,9 +145,10 @@ public sealed class Journal
                 "A reversal journal cannot itself be reversed; post a new correcting journal instead.");
         }
 
-        var reversal = CreateDraft(
+        var reversal = New(
             original.LedgerId,
             original.Currency,
+            JournalType.Reversal,
             description ?? $"Reversal of journal {original.Id}",
             externalReference: null,
             actor,

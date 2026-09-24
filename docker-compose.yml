@@ -1,5 +1,7 @@
-# Local development infrastructure. Copy .env.example to .env first.
-# Services run on the host in Milestone 0 (see README); containerising them is Milestone 3 scope.
+# Local multi-service environment (Milestone 3). Copy .env.example to .env first.
+#   docker compose up -d --build --wait     # everything, healthy
+#   docker compose up -d --wait postgres    # database only (services on the host)
+# Secrets come from .env (git-ignored). Published ports bind to 127.0.0.1 only.
 name: ledgercore
 
 services:
@@ -13,6 +15,7 @@ services:
       LEDGER_DB_PASSWORD: ${LEDGER_DB_PASSWORD:?set in .env}
       LEDGER_RUNTIME_DB_PASSWORD: ${LEDGER_RUNTIME_DB_PASSWORD:?set in .env}
       POLICY_DB_PASSWORD: ${POLICY_DB_PASSWORD:?set in .env}
+      POLICY_RUNTIME_DB_PASSWORD: ${POLICY_RUNTIME_DB_PASSWORD:?set in .env}
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -25,6 +28,56 @@ services:
       timeout: 3s
       retries: 20
       start_period: 10s
+
+  # One-shot: applies ledger migrations as the schema owner, then exits.
+  ledger-migrate:
+    build:
+      context: ./services/ledger-api
+      target: migrate
+    environment:
+      LEDGER_MIGRATIONS_CONNECTION: Host=postgres;Port=5432;Database=ledger;Username=ledger_app;Password=${LEDGER_DB_PASSWORD:?set in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # Flyway migrates as policy_app at startup; the service itself runs as policy_runtime.
+  policy-service:
+    build:
+      context: ./services/policy-service
+    environment:
+      POLICY_DB_URL: jdbc:postgresql://postgres:5432/policy
+      POLICY_RUNTIME_DB_PASSWORD: ${POLICY_RUNTIME_DB_PASSWORD:?set in .env}
+      POLICY_DB_PASSWORD: ${POLICY_DB_PASSWORD:?set in .env}
+      POLICY_DECISION_API_TOKEN: ${POLICY_DECISION_API_TOKEN:?set in .env}
+      # Empty disables the management API.
+      POLICY_ADMIN_API_TOKEN: ${POLICY_ADMIN_API_TOKEN:-}
+      LEDGERCORE_ENVIRONMENT: compose
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${POLICY_PORT:-8081}:8081"
+    restart: unless-stopped
+
+  # Starts only after its migrations completed and the policy service is ready.
+  ledger-api:
+    build:
+      context: ./services/ledger-api
+      target: runtime
+    environment:
+      ConnectionStrings__Ledger: Host=postgres;Port=5432;Database=ledger;Username=ledger_runtime;Password=${LEDGER_RUNTIME_DB_PASSWORD:?set in .env}
+      Ledger__PolicyServiceBaseUrl: http://policy-service:8081
+      Ledger__PolicyServiceToken: ${POLICY_DECISION_API_TOKEN:?set in .env}
+      Ledger__ExposeOpenApi: "true"
+    depends_on:
+      ledger-migrate:
+        condition: service_completed_successfully
+      policy-service:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${LEDGER_PORT:-8080}:8080"
+    restart: unless-stopped
 
 volumes:
   postgres-data:

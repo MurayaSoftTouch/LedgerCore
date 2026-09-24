@@ -191,7 +191,8 @@ public sealed class JournalApiTests(PostgresFixture db) : IDisposable
         var (api, ledger, _, _) = await SetUpAsync();
         using var anonymous = _factory.CreateClient();
 
-        var response = await anonymous.PostAsJsonAsync($"/api/v1/ledgers/{ledger}/journals", new { currency = "KES", description = "x" });
+        var response = await anonymous.PostAsJsonAsync(
+            $"/api/v1/ledgers/{ledger}/journals", new { currency = "KES", description = "x", transactionType = "PAYMENT" });
 
         await ApiClient.ExpectProblemAsync(response, HttpStatusCode.BadRequest, "ACTOR_REQUIRED");
     }
@@ -203,7 +204,7 @@ public sealed class JournalApiTests(PostgresFixture db) : IDisposable
         await api.CreateJournalAsync(ledger, "INV-2026-0001");
 
         var response = await api.Http.PostAsJsonAsync(
-            $"/api/v1/ledgers/{ledger}/journals", new { currency = "KES", description = "retry", externalReference = "INV-2026-0001" });
+            $"/api/v1/ledgers/{ledger}/journals", new { currency = "KES", description = "retry", externalReference = "INV-2026-0001", transactionType = "PAYMENT" });
 
         await ApiClient.ExpectProblemAsync(response, HttpStatusCode.Conflict, "EXTERNAL_REFERENCE_TAKEN");
     }

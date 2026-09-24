@@ -15,5 +15,8 @@ Each ADR records one decision: the context that forced it, what was chosen, what
 | [ADR-009](ADR-009-immutable-policy-versions.md) | Immutable policy versions | Accepted |
 | [ADR-010](ADR-010-deterministic-policy-evaluation.md) | Deterministic, structured policy evaluation | Accepted |
 | [ADR-011](ADR-011-decision-persistence-and-replay.md) | Policy decision persistence and replay | Accepted |
+| [ADR-012](ADR-012-ledger-policy-reliability-contract.md) | Ledger–policy reliability contract | Accepted |
+| [ADR-013](ADR-013-service-to-service-authentication.md) | Service-to-service authentication | Accepted |
+| [ADR-014](ADR-014-transactional-outbox-foundation.md) | Transactional outbox foundation | Accepted |
 
 New ADRs: copy the section headings of an existing one (Context, Decision, Alternatives, Consequences, Known limitations) and take the next number.

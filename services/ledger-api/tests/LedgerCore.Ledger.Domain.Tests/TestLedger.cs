@@ -50,7 +50,7 @@ internal sealed class TestLedger
 
     public Journal Draft(params (Account Account, EntryDirection Direction, decimal Amount)[] lines)
     {
-        var journal = Journal.CreateDraft(LedgerId, Currency, "test journal", null, "tester", Now);
+        var journal = Journal.CreateDraft(LedgerId, Currency, JournalType.Payment, "test journal", null, "tester", Now);
         foreach (var (account, direction, amount) in lines)
         {
             journal.AddEntry(account, direction, Amount(amount), memo: null);

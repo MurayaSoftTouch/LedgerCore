@@ -23,16 +23,23 @@ public final class PolicyApi {
             MockMvcRequestBuilders.post(path)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header(ACTOR, "tester")
+                .header("Authorization", TestTokens.ADMIN_BEARER)
                 .content(json))
         .andReturn();
   }
 
   public MvcResult postNoBody(String path) throws Exception {
-    return mvc.perform(MockMvcRequestBuilders.post(path).header(ACTOR, "tester")).andReturn();
+    return mvc.perform(
+            MockMvcRequestBuilders.post(path)
+                .header(ACTOR, "tester")
+                .header("Authorization", TestTokens.ADMIN_BEARER))
+        .andReturn();
   }
 
   public MvcResult get(String path) throws Exception {
-    return mvc.perform(MockMvcRequestBuilders.get(path)).andReturn();
+    return mvc.perform(
+            MockMvcRequestBuilders.get(path).header("Authorization", TestTokens.ADMIN_BEARER))
+        .andReturn();
   }
 
   /** Creates an organization-scoped policy (isolated from other tests) and returns its id. */
@@ -78,6 +85,7 @@ public final class PolicyApi {
             MockMvcRequestBuilders.post("/v1/policy-decisions")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("X-Correlation-Id", "test-correlation")
+                .header("Authorization", TestTokens.DECISION_BEARER)
                 .content(requestJson))
         .andReturn();
   }

@@ -20,7 +20,8 @@
 | Posting and reversal | **owns** | — |
 | Approval rules and versions | — | **owns** |
 | Approval decision | requests; records `decisionId` and `policyVersion` | **produces** |
-| Database | `ledger` (owner `ledger_app`; runtime `ledger_runtime`, see ADR-007) | `policy` (role `policy_app`) |
+| Database | `ledger` (owner `ledger_app`; runtime `ledger_runtime`, see ADR-007) | `policy` (owner `policy_app`; runtime `policy_runtime`) |
+| Approval | requests decisions; stores them as evidence | produces decisions (authenticated, ADR-013) |
 | Contract role | client | server |
 
 ## Rules

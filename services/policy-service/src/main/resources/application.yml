@@ -1,16 +1,20 @@
 spring:
   application:
     name: policy-service
-  # The dedicated `policy` database, as its owner role (ADR-003). This service has no access to the
-  # ledger database. No password default is committed: set POLICY_DB_PASSWORD (see .env.example).
+  # The dedicated `policy` database (ADR-003); this service has no access to the ledger database.
+  # Runtime queries use the least-privilege policy_runtime role; only Flyway uses the schema owner.
+  # No password defaults are committed: set POLICY_RUNTIME_DB_PASSWORD and POLICY_DB_PASSWORD.
   datasource:
     url: ${POLICY_DB_URL:jdbc:postgresql://localhost:5432/policy}
-    username: ${POLICY_DB_USERNAME:policy_app}
-    password: ${POLICY_DB_PASSWORD:}
+    username: ${POLICY_DB_RUNTIME_USERNAME:policy_runtime}
+    password: ${POLICY_RUNTIME_DB_PASSWORD:}
     hikari:
       maximum-pool-size: ${POLICY_DB_POOL_SIZE:10}
-  # Forward-only, versioned migrations (db/migration). There is no ORM and no schema generation.
+  # Forward-only, versioned migrations (db/migration) as the schema owner, over its own connection.
+  # There is no ORM and no schema generation.
   flyway:
+    user: ${POLICY_DB_MIGRATION_USERNAME:policy_app}
+    password: ${POLICY_DB_PASSWORD:}
     clean-disabled: true
     validate-on-migrate: true
 
@@ -20,8 +24,13 @@ server:
 
 ledgercore:
   policy:
-    contract-version: 1.0.1
+    contract-version: 1.1.0
     environment: ${LEDGERCORE_ENVIRONMENT:local}
+    # Shared service credentials (ADR-013), from the environment only. The decision token is
+    # required; without an admin token the management API is disabled.
+    auth:
+      decision-token: ${POLICY_DECISION_API_TOKEN:}
+      admin-token: ${POLICY_ADMIN_API_TOKEN:}
 
 management:
   endpoints:
@@ -34,7 +43,7 @@ management:
         enabled: true
       group:
         readiness:
-          include: readinessState,db
+          include: readinessState,db,policySchema
   info:
     env:
       enabled: true

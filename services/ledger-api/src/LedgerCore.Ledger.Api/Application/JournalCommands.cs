@@ -14,7 +14,13 @@ namespace LedgerCore.Ledger.Api.Application;
 internal sealed class JournalCommands(LedgerDbContext db, TimeProvider time)
 {
     public async Task<Journal> CreateDraftAsync(
-        Guid ledgerId, string currency, string description, string? externalReference, string actor, CancellationToken ct)
+        Guid ledgerId,
+        string currency,
+        JournalType type,
+        string description,
+        string? externalReference,
+        string actor,
+        CancellationToken ct)
     {
         if (!await db.Ledgers.AnyAsync(l => l.Id == ledgerId, ct))
         {
@@ -22,7 +28,7 @@ internal sealed class JournalCommands(LedgerDbContext db, TimeProvider time)
         }
 
         var journal = Journal.CreateDraft(
-            ledgerId, Currency.FromCode(currency), description, externalReference, actor, time.GetUtcNow());
+            ledgerId, Currency.FromCode(currency), type, description, externalReference, actor, time.GetUtcNow());
         db.Journals.Add(journal);
         await db.SaveChangesAsync(ct);
         return journal;
@@ -47,13 +53,19 @@ internal sealed class JournalCommands(LedgerDbContext db, TimeProvider time)
 
     /// <summary>
     /// Posts an approved journal. Inside one transaction: lock the journal, re-read its persisted
-    /// entries, share-lock and re-read the accounts, validate, transition. Client totals are never used.
+    /// entries, share-lock and re-read the accounts, validate, transition, and write the
+    /// <c>JournalPosted</c> outbox event (ADR-014). Client totals are never used.
     /// </summary>
     public Task<Journal> PostAsync(Guid ledgerId, Guid journalId, string actor, CancellationToken ct) =>
         InTransactionAsync(ledgerId, journalId, async journal =>
         {
             var accounts = await LockAndLoadAccountsAsync(journal, ct);
-            journal.Post(accounts, actor, time.GetUtcNow());
+            var totals = journal.Post(accounts, actor, time.GetUtcNow());
+            var decisionId = await db.JournalPolicyDecisions
+                .Where(d => d.JournalId == journalId)
+                .Select(d => (Guid?)d.DecisionId)
+                .SingleOrDefaultAsync(ct);
+            db.OutboxEvents.Add(OutboxEvent.JournalPosted(journal, totals, decisionId));
         }, ct);
 
     /// <summary>

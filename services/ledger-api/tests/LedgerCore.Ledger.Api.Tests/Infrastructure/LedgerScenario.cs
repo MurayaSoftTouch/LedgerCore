@@ -1,8 +1,10 @@
 using LedgerCore.Ledger.Api.Application;
+using LedgerCore.Ledger.Api.Integration.Policy;
 using LedgerCore.Ledger.Api.Persistence;
 using LedgerCore.Ledger.Domain.Accounts;
 using LedgerCore.Ledger.Domain.Journals;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace LedgerCore.Ledger.Api.Tests.Infrastructure;
 
@@ -59,7 +61,7 @@ internal sealed class LedgerScenario
     {
         await using var ctx = _db.CreateRuntimeContext();
         var commands = new JournalCommands(ctx, TimeProvider.System);
-        var journal = await commands.CreateDraftAsync(LedgerId, "KES", "scenario journal", null, "tester", default);
+        var journal = await commands.CreateDraftAsync(LedgerId, "KES", JournalType.Payment, "scenario journal", null, "tester", default);
         foreach (var (account, direction, amount) in lines)
         {
             await commands.AddEntryAsync(LedgerId, journal.Id, account, direction, amount, null, default);
@@ -92,16 +94,28 @@ internal sealed class LedgerScenario
     public Task<Journal> ReverseAsync(Guid journalId, params IInterceptor[] interceptors) =>
         WithCommands(c => c.ReverseAsync(LedgerId, journalId, null, "reverser", default), interceptors);
 
+    /// <summary>Stand-in policy service used by <see cref="ApproveAsync"/> and <see cref="RejectAsync"/>.</summary>
+    public StubPolicyDecisionClient Policy { get; } = new();
+
+    /// <summary>Approves through the real approval path, with the stub policy deciding APPROVED.</summary>
     public async Task ApproveAsync(Guid journalId)
     {
-        await using var ctx = _db.CreateRuntimeContext();
-        await new TestApprovalRecorder(ctx, TimeProvider.System).ApproveAsync(LedgerId, journalId, "test-approver");
+        Policy.Decide(journalId, PolicyDecisionValue.Approved);
+        await RequestApprovalAsync(journalId);
     }
 
+    /// <summary>Rejects through the real approval path, with the stub policy deciding REJECTED.</summary>
     public async Task RejectAsync(Guid journalId)
     {
+        Policy.Decide(journalId, PolicyDecisionValue.Rejected, "TEST_REJECTION");
+        await RequestApprovalAsync(journalId);
+    }
+
+    public async Task<ApprovalOutcome> RequestApprovalAsync(Guid journalId, IPolicyDecisionClient? client = null)
+    {
         await using var ctx = _db.CreateRuntimeContext();
-        await new TestApprovalRecorder(ctx, TimeProvider.System).RejectAsync(LedgerId, journalId, "test-rejecter", "TEST_REJECTION");
+        return await new PolicyApproval(ctx, client ?? Policy, TimeProvider.System, NullLogger<PolicyApproval>.Instance)
+            .RequestAsync(LedgerId, journalId, "approval-requester", default);
     }
 
     public async Task DeactivateAsync(Guid accountId)
