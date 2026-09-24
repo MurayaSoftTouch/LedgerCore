@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using LedgerCore.Ledger.Api.Integration.Policy;
+using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace LedgerCore.Ledger.Api.Tests.Infrastructure;
 
@@ -13,9 +14,12 @@ internal sealed class ApiClient(LedgerApiFactory factory, HttpClient http)
 
     public HttpClient Http { get; } = http;
 
-    public static ApiClient Create(LedgerApiFactory factory)
+    public static ApiClient Create(LedgerApiFactory factory) => Create(factory, factory);
+
+    /// <summary>A client on <paramref name="host"/>, a host derived from <paramref name="factory"/> (same stub policy service).</summary>
+    public static ApiClient Create(LedgerApiFactory factory, WebApplicationFactory<Program> host)
     {
-        var client = factory.CreateClient();
+        var client = host.CreateClient();
         client.DefaultRequestHeaders.Add(ActorHeader, "api-tester");
         return new ApiClient(factory, client);
     }
