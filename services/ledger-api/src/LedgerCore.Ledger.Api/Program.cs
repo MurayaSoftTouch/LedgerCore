@@ -30,6 +30,7 @@ builder.Services.AddScoped<AccountCommands>();
 builder.Services.AddScoped<JournalCommands>();
 builder.Services.AddScoped<LedgerQueries>();
 builder.Services.AddScoped<PolicyApproval>();
+builder.Services.AddScoped<LedgerReconciliation>();
 builder.Services.AddPolicyDecisionClient();
 builder.Services.AddHttpClient(PolicyServiceHealthCheck.ClientName);
 

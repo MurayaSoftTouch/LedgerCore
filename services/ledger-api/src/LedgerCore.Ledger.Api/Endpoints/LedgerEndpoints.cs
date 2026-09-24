@@ -22,6 +22,11 @@ internal static class LedgerEndpoints
         ledgers.MapGet("/{ledgerId:guid}", async (Guid ledgerId, LedgerQueries queries, CancellationToken ct) =>
             LedgerResponse.From(await queries.GetLedgerAsync(ledgerId, ct)));
 
+        // Read-only consistency report over POSTED entries (Milestone 4). "consistent" is false only if
+        // something bypassed the ledger's database guards.
+        ledgers.MapGet("/{ledgerId:guid}/reconciliation", async (Guid ledgerId, LedgerReconciliation reconciliation, CancellationToken ct) =>
+            ReconciliationResponse.From(await reconciliation.RunAsync(ledgerId, ct)));
+
         var accounts = ledgers.MapGroup("/{ledgerId:guid}/accounts").WithTags("accounts");
 
         accounts.MapPost("/", async (Guid ledgerId, OpenAccountRequest request, AccountCommands commands, CancellationToken ct) =>

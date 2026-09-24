@@ -6,6 +6,7 @@ using LedgerCore.Ledger.Api.Persistence;
 using LedgerCore.Ledger.Domain;
 using LedgerCore.Ledger.Domain.Accounts;
 using LedgerCore.Ledger.Domain.Journals;
+using LedgerCore.Ledger.Domain.Monetary;
 using DomainLedger = LedgerCore.Ledger.Domain.Ledgers.Ledger;
 
 namespace LedgerCore.Ledger.Api.Endpoints;
@@ -138,6 +139,36 @@ internal sealed record JournalResponse(
     public static JournalResponse From(JournalView view) => From(view.Journal, view.ReversedByJournalId, view.PolicyDecision);
 
     public static JournalResponse From(ApprovalOutcome outcome) => From(outcome.Journal, null, outcome.Evidence, outcome.Failure);
+}
+
+internal sealed record CurrencyTotalsResponse(string Currency, int PostedJournals, string Debits, string Credits, bool Balanced);
+
+internal sealed record AccountMovementResponse(Guid AccountId, string Code, string Currency, string Debits, string Credits, string Net);
+
+/// <summary>The ledger reconciliation report. Amounts are decimal strings in each currency's minor units.</summary>
+internal sealed record ReconciliationResponse(
+    Guid LedgerId,
+    DateTimeOffset GeneratedAt,
+    bool Consistent,
+    IReadOnlyList<CurrencyTotalsResponse> Currencies,
+    IReadOnlyList<Guid> UnbalancedJournals,
+    IReadOnlyList<Guid> MismatchedReversals,
+    IReadOnlyList<AccountMovementResponse> Accounts)
+{
+    public static ReconciliationResponse From(ReconciliationReport r)
+    {
+        static string Amount(decimal value, string currency) => AmountText.Format(value, Currency.FromCode(currency).MinorUnits);
+
+        return new ReconciliationResponse(
+            r.LedgerId,
+            r.GeneratedAt,
+            r.Consistent,
+            [.. r.Currencies.Select(c => new CurrencyTotalsResponse(c.Currency, c.PostedJournals, Amount(c.Debits, c.Currency), Amount(c.Credits, c.Currency), c.Balanced))],
+            r.UnbalancedJournals,
+            r.MismatchedReversals,
+            [.. r.Accounts.Select(a => new AccountMovementResponse(
+                a.AccountId, a.Code, a.Currency, Amount(a.Debits, a.Currency), Amount(a.Credits, a.Currency), Amount(a.Net, a.Currency)))]);
+    }
 }
 
 /// <summary>Amounts cross the API as decimal strings, matching the policy contract (ADR-005).</summary>
