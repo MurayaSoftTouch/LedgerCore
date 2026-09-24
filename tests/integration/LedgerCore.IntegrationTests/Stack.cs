@@ -38,6 +38,9 @@ public sealed class Stack : IAsyncLifetime
     private IContainer _ledger = null!;
     private IContainer _toxiproxy = null!;
 
+    /// <summary>Every credential this run generated: service tokens and all database passwords.</summary>
+    public IReadOnlyList<string> Secrets => [DecisionToken, AdminToken, _adminPassword, _ledgerOwner, _ledgerRuntime, _policyOwner, _policyRuntime];
+
     public HttpClient Ledger { get; private set; } = null!;
 
     public HttpClient Policy { get; private set; } = null!;
@@ -153,6 +156,12 @@ public sealed class Stack : IAsyncLifetime
         var (stdout, stderr) = await container.GetLogsAsync();
         return stdout + stderr;
     }
+
+    /// <summary>Stops the shared PostgreSQL container (both services lose their database).</summary>
+    public Task StopPostgresAsync() => _postgres.StopAsync();
+
+    /// <summary>Starts it again with its data; the host port may change, the network alias does not.</summary>
+    public Task StartPostgresAsync() => _postgres.StartAsync();
 
     public Task SetProxyAsync(object settings) => Post($"proxies/{ProxyName}", settings);
 

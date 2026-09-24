@@ -190,9 +190,16 @@ public sealed class EndToEndTests(Stack stack) : IAsyncLifetime
 
         var logs = await stack.LogsAsync("ledger") + await stack.LogsAsync("policy");
 
-        Assert.DoesNotContain(stack.DecisionToken, logs, StringComparison.Ordinal);
-        Assert.DoesNotContain(stack.AdminToken, logs, StringComparison.Ordinal);
-        Assert.DoesNotContain("Password=", logs, StringComparison.Ordinal);
+        // Service tokens and all five database passwords, after successful and rejected requests.
+        using var anonymous = new HttpClient { BaseAddress = stack.Policy.BaseAddress };
+        await anonymous.PostAsync(new Uri("v1/policy-decisions", UriKind.Relative), null);
+        logs = await stack.LogsAsync("ledger") + await stack.LogsAsync("policy");
+        foreach (var secret in stack.Secrets)
+        {
+            Assert.DoesNotContain(secret, logs, StringComparison.Ordinal);
+        }
+
+        Assert.DoesNotContain("Password=", logs, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

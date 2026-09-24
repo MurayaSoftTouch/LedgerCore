@@ -10,6 +10,10 @@ spring:
     password: ${POLICY_RUNTIME_DB_PASSWORD:}
     hikari:
       maximum-pool-size: ${POLICY_DB_POOL_SIZE:10}
+      # Fail fast when the database is down (Milestone 5): the default 30 s would hold every request
+      # and readiness probe for 30 s. Well inside the ledger's per-attempt budget.
+      connection-timeout: ${POLICY_DB_CONNECTION_TIMEOUT_MS:2000}
+      validation-timeout: 1000
   # Forward-only, versioned migrations (db/migration) as the schema owner, over its own connection.
   # There is no ORM and no schema generation.
   flyway:
