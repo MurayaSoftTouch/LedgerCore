@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using LedgerCore.Ledger.Domain;
 
@@ -22,6 +24,12 @@ internal sealed partial record IdempotencyKey
     private IdempotencyKey(string value) => Value = value;
 
     public string Value { get; }
+
+    /// <summary>
+    /// What logs show instead of the key: the first 12 hex digits of its SHA-256. Enough to match a
+    /// log line to a claim, and it reveals nothing if a client put something sensitive in the key.
+    /// </summary>
+    public string Reference => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(Value)))[..12];
 
     /// <summary>Validates a header value: required, 8–128 characters from <c>A–Z a–z 0–9 . _ : ~ -</c>.</summary>
     public static IdempotencyKey Parse(string? value)

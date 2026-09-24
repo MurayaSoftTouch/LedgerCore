@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
@@ -29,6 +30,7 @@ internal sealed partial class PolicyDecisionClient(
         };
         message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.PolicyServiceToken);
 
+        var started = Stopwatch.GetTimestamp();
         PolicyEvaluationResult result;
         try
         {
@@ -49,9 +51,15 @@ internal sealed partial class PolicyDecisionClient(
             result = new PolicyEvaluationResult.Failed(PolicyFailureKind.Unavailable, $"policy service unreachable ({e.HttpRequestError})");
         }
 
+        var durationMs = (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         if (result is PolicyEvaluationResult.Failed failed)
         {
-            LogFailure(request.TransactionId, failed.Kind, failed.Detail);
+            LogFailure(request.TransactionId, failed.Kind, failed.Detail, durationMs);
+        }
+        else
+        {
+            var decided = ((PolicyEvaluationResult.Decided)result).Decision;
+            LogDecided(request.TransactionId, decided.DecisionId, decided.Decision, durationMs);
         }
 
         return result;
@@ -84,6 +92,9 @@ internal sealed partial class PolicyDecisionClient(
             requestedAt = request.RequestedAt.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture),
         });
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Policy evaluation failed for transaction {PolicyTransactionId}: {FailureKind} ({Detail})")]
-    private partial void LogFailure(Guid policyTransactionId, PolicyFailureKind failureKind, string detail);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Policy evaluation failed for transaction {PolicyTransactionId}: {FailureKind} ({Detail}) after {DurationMs} ms")]
+    private partial void LogFailure(Guid policyTransactionId, PolicyFailureKind failureKind, string detail, long durationMs);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Policy evaluation for transaction {PolicyTransactionId}: decision {PolicyDecisionId} {Decision} in {DurationMs} ms (including retries)")]
+    private partial void LogDecided(Guid policyTransactionId, Guid policyDecisionId, PolicyDecisionValue decision, long durationMs);
 }

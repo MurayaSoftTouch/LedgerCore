@@ -342,8 +342,16 @@ internal sealed class CollectingLoggerProvider : ILoggerProvider
 
     private sealed class Logger(CollectingLoggerProvider provider, string category) : ILogger
     {
+        /// <summary>Scope values are recorded too, so leak checks cover them.</summary>
         public IDisposable? BeginScope<TState>(TState state)
-            where TState : notnull => null;
+            where TState : notnull
+        {
+            var text = state is IEnumerable<KeyValuePair<string, object>> pairs
+                ? string.Join(", ", pairs.Select(p => $"{p.Key}={p.Value}"))
+                : state.ToString();
+            provider.Entries.Enqueue((LogLevel.Trace, category, "SCOPE " + text));
+            return null;
+        }
 
         public bool IsEnabled(LogLevel logLevel) => true;
 

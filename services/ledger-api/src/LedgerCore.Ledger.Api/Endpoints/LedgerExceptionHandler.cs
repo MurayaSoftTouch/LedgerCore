@@ -91,9 +91,11 @@ internal sealed partial class LedgerExceptionHandler(IProblemDetailsService prob
         StatusCodes.Status503ServiceUnavailable, "LEDGER_DATABASE_UNAVAILABLE", "The ledger database is unavailable. Nothing was changed; retry later.");
 
     /// <summary>
-    /// The ledger database cannot be reached or has no capacity: connection failures, an exhausted
-    /// connection pool, or the server refusing connections (SQLSTATE classes 08 and 53, 57P01–57P03).
-    /// A statement that ran and failed (a guard, a constraint) is not an outage.
+    /// The ledger database cannot be reached, refuses this service, or has no capacity: connection
+    /// failures, an exhausted connection pool, rejected credentials or a missing database (a
+    /// deployment fault, not the client's), or the server refusing connections (SQLSTATE classes 08,
+    /// 28 and 53, 3D000, 57P01–57P03). A statement that ran and failed (a guard, a constraint) is not
+    /// an outage.
     /// </summary>
     private static bool IsDatabaseUnavailable(Exception exception)
     {
@@ -103,8 +105,9 @@ internal sealed partial class LedgerExceptionHandler(IProblemDetailsService prob
             {
                 case PostgresException pg:
                     return pg.SqlState.StartsWith("08", StringComparison.Ordinal)
+                        || pg.SqlState.StartsWith("28", StringComparison.Ordinal)
                         || pg.SqlState.StartsWith("53", StringComparison.Ordinal)
-                        || pg.SqlState is "57P01" or "57P02" or "57P03";
+                        || pg.SqlState is "3D000" or "57P01" or "57P02" or "57P03";
                 case NpgsqlException:
                     return true;
             }

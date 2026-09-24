@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using LedgerCore.Ledger.Api.Integration.Correlation;
 using LedgerCore.Ledger.Api.Integration.Policy;
 using LedgerCore.Ledger.Api.Persistence;
@@ -6,6 +7,7 @@ using LedgerCore.Ledger.Domain.Accounts;
 using LedgerCore.Ledger.Domain.Journals;
 using LedgerCore.Ledger.Domain.Monetary;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace LedgerCore.Ledger.Api.Application;
 
@@ -17,7 +19,7 @@ internal sealed record CommandResult(Journal Journal, bool Replayed);
 /// Journal state changes. Each command runs in one database transaction that locks the journal row
 /// before reading it; the domain validates, and the database triggers re-validate on write (ADR-007).
 /// </summary>
-internal sealed class JournalCommands(LedgerDbContext db, TimeProvider time)
+internal sealed partial class JournalCommands(LedgerDbContext db, TimeProvider time, ILogger<JournalCommands>? logger = null)
 {
     public async Task<Journal> CreateDraftAsync(
         Guid ledgerId,
@@ -165,6 +167,38 @@ internal sealed class JournalCommands(LedgerDbContext db, TimeProvider time)
         Func<Journal, Journal, Task> complete,
         CancellationToken ct)
     {
+        var started = Stopwatch.GetTimestamp();
+        var operationText = EnumText.ToText(operation);
+        var keyReference = key.Reference;
+        try
+        {
+            var result = await RunIdempotentAsync(ledgerId, targetJournalId, operation, key, fingerprint, actor, prepare, complete, ct);
+            var outcome = result.Replayed ? "REPLAYED" : "COMPLETED";
+            var durationMs = (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            Log.CommandCompleted(Logger, operationText, ledgerId, targetJournalId, result.Journal.Id, outcome, keyReference, durationMs);
+            return result;
+        }
+        catch (LedgerDomainException e)
+        {
+            var durationMs = (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            Log.CommandRefused(Logger, operationText, ledgerId, targetJournalId, e.Code, keyReference, durationMs);
+            throw;
+        }
+    }
+
+    private ILogger Logger => logger ?? (ILogger)NullLogger.Instance;
+
+    private async Task<CommandResult> RunIdempotentAsync(
+        Guid ledgerId,
+        Guid targetJournalId,
+        CommandOperation operation,
+        IdempotencyKey key,
+        string fingerprint,
+        string actor,
+        Func<Journal, Task<Journal>> prepare,
+        Func<Journal, Journal, Task> complete,
+        CancellationToken ct)
+    {
         for (var attempt = 1; ; attempt++)
         {
             await using var tx = await db.Database.BeginTransactionAsync(ct);
@@ -260,5 +294,15 @@ internal sealed class JournalCommands(LedgerDbContext db, TimeProvider time)
         var accountIds = journal.Entries.Select(e => e.AccountId).Distinct().Order().ToArray();
         await db.LockAccountsForShareAsync(accountIds, ct);
         return await db.Accounts.Where(a => accountIds.Contains(a.Id)).ToDictionaryAsync(a => a.Id, ct);
+    }
+
+    /// <summary>Identifiers, outcome and duration only; the key appears only as <see cref="IdempotencyKey.Reference"/>.</summary>
+    private static partial class Log
+    {
+        [LoggerMessage(Level = LogLevel.Information, Message = "{Operation} on journal {JournalId} in ledger {LedgerId} -> {ResultJournalId}: {Outcome} (key {IdempotencyKeyRef}) in {DurationMs} ms")]
+        public static partial void CommandCompleted(ILogger logger, string operation, Guid ledgerId, Guid journalId, Guid resultJournalId, string outcome, string idempotencyKeyRef, long durationMs);
+
+        [LoggerMessage(Level = LogLevel.Information, Message = "{Operation} on journal {JournalId} in ledger {LedgerId} refused: {Code} (key {IdempotencyKeyRef}) in {DurationMs} ms")]
+        public static partial void CommandRefused(ILogger logger, string operation, Guid ledgerId, Guid journalId, string code, string idempotencyKeyRef, long durationMs);
     }
 }
