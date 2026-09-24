@@ -4,17 +4,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.ledgercore.policy.support.PostgresIntegrationTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.test.web.servlet.MockMvc;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-class PolicyServiceApplicationTests {
-
-  @Autowired private MockMvc mockMvc;
+class PolicyServiceApplicationTests extends PostgresIntegrationTest {
 
   @Test
   void healthEndpointReportsUp() throws Exception {
@@ -34,7 +27,7 @@ class PolicyServiceApplicationTests {
     mockMvc
         .perform(get("/actuator/info"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.contract-version").value("1.0.0"));
+        .andExpect(jsonPath("$.contract-version").value("1.0.1"));
   }
 
   @Test

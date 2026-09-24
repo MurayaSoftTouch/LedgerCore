@@ -66,6 +66,7 @@ jobs:
         run: ./mvnw -B -ntp dependency:go-offline
       - name: Format check
         run: ./mvnw -B -ntp spotless:check
+      # Integration and contract tests start PostgreSQL 18.6 through Testcontainers (Docker is available on ubuntu-latest).
       - name: Compile and test
         run: ./mvnw -B -ntp verify
 

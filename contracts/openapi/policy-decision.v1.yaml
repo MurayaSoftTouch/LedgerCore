@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: LedgerCore Policy Decision API
-  version: 1.0.0
+  version: 1.0.1
   summary: Contract between the ledger service (client) and the policy service (server).
   description: |
     The ledger asks the policy service whether a balanced journal may be approved.
@@ -14,6 +14,22 @@ info:
 
     **Versioning.** Major version is in the path (`/v1`). Both sides send
     `contractVersion` in the body; minor/patch changes are additive only.
+
+    **Idempotency (1.0.1).** `transactionId` identifies one decision. A repeated
+    request whose decision-relevant fields (`organizationId`, `transactionType`,
+    `currency`, `totalAmount` compared numerically, and `accountContext` as an
+    unordered set) are identical returns the original decision unchanged: same
+    `decisionId`, `policyVersion`, `decision`, `reasonCodes` and `evaluatedAt`.
+    `requestedAt`, `requestedBy` and `contractVersion` may differ on a retry. A
+    repeated `transactionId` with different decision-relevant fields is `409`
+    (`IDEMPOTENCY_CONFLICT`); the original decision stands.
+
+    **Changelog.**
+    - 1.0.1: clarifications only, with no change to validation. Idempotency
+      semantics; `policyVersion` is `none` when no policy version could decide;
+      reserved reason codes; `409` also covers idempotency conflicts; problem
+      bodies carry a machine-readable `code`.
+    - 1.0.0: initial contract.
   license:
     name: Proprietary
     identifier: LicenseRef-Proprietary
@@ -63,8 +79,13 @@ paths:
           $ref: '#/components/responses/Problem'
         '409':
           description: |
-            Unsupported `contractVersion` (e.g. a future major). The ledger
-            classifies this as contract incompatibility, not rejection.
+            `CONTRACT_VERSION_UNSUPPORTED`: `contractVersion` is not 1.x (e.g. a
+            future major). The ledger classifies this as contract incompatibility,
+            not rejection.
+
+            `IDEMPOTENCY_CONFLICT` (1.0.1): this `transactionId` was already
+            decided with different decision-relevant fields. The original decision
+            is unchanged; the ledger must not retry with the conflicting body.
           content:
             application/problem+json:
               schema:
@@ -108,3 +129,9 @@ components:
           format: uri-reference
         correlationId:
           type: string
+        code:
+          type: string
+          description: |
+            Stable machine-readable error code (1.0.1), e.g. `VALIDATION_FAILED`,
+            `REQUEST_INVALID`, `CONTRACT_VERSION_UNSUPPORTED`, `IDEMPOTENCY_CONFLICT`,
+            `POLICY_EVALUATION_UNAVAILABLE`.

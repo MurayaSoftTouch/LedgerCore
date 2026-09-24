@@ -12,5 +12,8 @@ Each ADR records one decision: the context that forced it, what was chosen, what
 | [ADR-006](ADR-006-journal-lifecycle.md) | Journal lifecycle | Accepted |
 | [ADR-007](ADR-007-database-enforced-ledger-invariants.md) | Database-enforced ledger invariants and runtime role separation | Accepted |
 | [ADR-008](ADR-008-money-representation.md) | Money representation and currency precision | Accepted |
+| [ADR-009](ADR-009-immutable-policy-versions.md) | Immutable policy versions | Accepted |
+| [ADR-010](ADR-010-deterministic-policy-evaluation.md) | Deterministic, structured policy evaluation | Accepted |
+| [ADR-011](ADR-011-decision-persistence-and-replay.md) | Policy decision persistence and replay | Accepted |
 
 New ADRs: copy the section headings of an existing one (Context, Decision, Alternatives, Consequences, Known limitations) and take the next number.
