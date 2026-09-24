@@ -8,6 +8,9 @@ internal static class DatabaseConstraints
     public const string ExternalReferenceUnique = "ux_journals_ledger_external_reference";
     public const string LiveReversalUnique = "ux_journals_live_reversal";
     public const string PolicyDecisionUnique = "ux_journal_policy_decisions_decision";
+    public const string IdempotencyKeyPrimaryKey = "pk_command_idempotency";
+    public const string PostingClaimUnique = "ux_command_idempotency_posting";
+    public const string ReversalClaimUnique = "ux_command_idempotency_reversal";
 
     /// <summary>SQLSTATE raised by LedgerCore triggers. The message starts with a domain error code.</summary>
     public const string LedgerInvariantSqlState = "LC001";

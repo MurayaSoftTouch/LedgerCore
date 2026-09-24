@@ -65,9 +65,16 @@ class RuntimeRoleTests extends PostgresIntegrationTest {
   }
 
   @Test
-  void runtimeRoleStillHitsTheGuardsWhereItHasPrivileges() {
+  void runtimeRoleStillHitsTheGuardsWhereItHasPrivileges() throws Exception {
     // UPDATE on policies is granted only to allow the per-policy row lock; the trigger forbids it.
-    Sql.assertGuard(Sql.failsAsRuntime("UPDATE policies SET name = 'renamed'"), "POLICY_IMMUTABLE");
+    // Row triggers need a row: target this test's own policy, so the result doesn't depend on
+    // which tests ran first (it silently updated nothing when run alone).
+    var scope = api().activePolicy(STANDARD_RULES);
+    Sql.assertGuard(
+        Sql.failsAsRuntime(
+            "UPDATE policies SET name = 'renamed' WHERE organization_id = ?",
+            scope.organizationId()),
+        "POLICY_IMMUTABLE");
   }
 
   @Test

@@ -22,6 +22,11 @@ internal static class LedgerEndpoints
         ledgers.MapGet("/{ledgerId:guid}", async (Guid ledgerId, LedgerQueries queries, CancellationToken ct) =>
             LedgerResponse.From(await queries.GetLedgerAsync(ledgerId, ct)));
 
+        // Read-only consistency report over POSTED entries (Milestone 4). "consistent" is false only if
+        // something bypassed the ledger's database guards.
+        ledgers.MapGet("/{ledgerId:guid}/reconciliation", async (Guid ledgerId, LedgerReconciliation reconciliation, CancellationToken ct) =>
+            ReconciliationResponse.From(await reconciliation.RunAsync(ledgerId, ct)));
+
         var accounts = ledgers.MapGroup("/{ledgerId:guid}/accounts").WithTags("accounts");
 
         accounts.MapPost("/", async (Guid ledgerId, OpenAccountRequest request, AccountCommands commands, CancellationToken ct) =>
@@ -81,15 +86,27 @@ internal static class LedgerEndpoints
                 : JournalResponse.From(outcome);
         });
 
-        journals.MapPost("/{journalId:guid}/post", async (Guid ledgerId, Guid journalId, JournalCommands commands, HttpContext http, CancellationToken ct) =>
-            JournalResponse.From(await commands.PostAsync(ledgerId, journalId, Actor.From(http), ct)));
+        // Idempotent (ADR-015): requires Idempotency-Key. A retry with the same key and request
+        // returns the original posted journal, marked Idempotency-Replayed. Posting uses the recorded
+        // approval evidence and never calls the policy service.
+        journals.MapPost("/{journalId:guid}/post", async (Guid ledgerId, Guid journalId, JournalCommands commands, LedgerQueries queries, HttpContext http, CancellationToken ct) =>
+        {
+            var actor = Actor.From(http);
+            var result = await commands.PostAsync(ledgerId, journalId, actor, IdempotencyKeyHeader.From(http), ct);
+            IdempotencyKeyHeader.MarkReplayed(http, result);
+            return JournalResponse.From(result.Journal, null, await queries.GetPolicyDecisionAsync(journalId, ct));
+        });
 
+        // Idempotent (ADR-015): a retry with the same key returns the same reversal journal in its
+        // current state. The reversal goes through policy like any journal (ADR-006); a retry asks
+        // again only while no decision is recorded for it.
         journals.MapPost("/{journalId:guid}/reverse", async (Guid ledgerId, Guid journalId, ReverseJournalRequest? request, JournalCommands commands, PolicyApproval approval, HttpContext http, CancellationToken ct) =>
         {
             var actor = Actor.From(http);
-            var reversal = await commands.ReverseAsync(ledgerId, journalId, request?.Description, actor, ct);
-            var outcome = await approval.RequestAsync(ledgerId, reversal.Id, actor, ct);
-            return Results.Created($"/api/v1/ledgers/{ledgerId}/journals/{reversal.Id}", JournalResponse.From(outcome));
+            var result = await commands.ReverseAsync(ledgerId, journalId, request?.Description, actor, IdempotencyKeyHeader.From(http), ct);
+            IdempotencyKeyHeader.MarkReplayed(http, result);
+            var outcome = await approval.RequestAsync(ledgerId, result.Journal.Id, actor, ct);
+            return Results.Created($"/api/v1/ledgers/{ledgerId}/journals/{result.Journal.Id}", JournalResponse.From(outcome));
         });
     }
 }

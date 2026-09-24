@@ -30,7 +30,7 @@ Ownership means accountability for a design and for reviewing changes to it. It 
 | 1 | Ledger domain foundation | @LMichy1 | — | Complete locally on `feat/m1-ledger-domain` (not pushed; awaiting review) |
 | 2 | Policy service | @MurayaSoftTouch | — | Complete locally on `feat/m2-policy-engine` (not pushed; awaiting review) |
 | 3 | Cross-service reliability | @Ngetich-86 | — | Implemented on `feat/m3-service-integration`; multi-service verification pending (storage-gated); not pushed |
-| 4 | Posting, reversal and idempotency | @LMichy1 | @Ngetich-86 | Planned (after Milestone 3 verification) |
+| 4 | Posting, reversal and idempotency | @LMichy1 | @Ngetich-86 | Implemented on `feat/m4-posting-hardening` (not pushed or reviewed) |
 | 5 | Reconciliation, observability and security | @Ngetich-86 | @MurayaSoftTouch | Planned |
 | 6 | Final release | all | — | Planned |
 

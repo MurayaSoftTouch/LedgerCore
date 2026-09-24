@@ -97,14 +97,26 @@ DRAFT ──submit──▶ PENDING_APPROVAL ──approve──▶ APPROVED ─
 
 ## Posting transaction
 
-`JournalCommands.PostAsync` runs in one PostgreSQL transaction (READ COMMITTED):
+`JournalCommands.PostAsync` runs in one PostgreSQL transaction (READ COMMITTED). Since Milestone 4 it is idempotent and requires an `Idempotency-Key` ([posting-idempotency.md](posting-idempotency.md), ADR-015).
 
 1. `SELECT … FROM journals WHERE id = $1 AND ledger_id = $2 FOR UPDATE`: lock first, then read.
 2. Load the journal and its **persisted** entries. Client totals are never used.
-3. `SELECT … FROM accounts WHERE id = ANY($1) ORDER BY id FOR SHARE`, then load the accounts. A concurrent deactivation waits for this transaction.
-4. The domain's `Journal.Post` checks: status is `APPROVED` (`JOURNAL_ALREADY_POSTED` if already posted), the journal is balanced, and every account exists, is active, and is in the same ledger and currency.
-5. `UPDATE journals SET status = 'POSTED', posted_at, posted_by`. The trigger re-validates the transition, the balance and account activity, and writes the audit row.
-6. Commit. Any exception before commit rolls back everything, including the audit row.
+3. If a claim for the key is committed:
+   - with the same request fingerprint → replay it, writing nothing;
+   - with a different fingerprint → `IDEMPOTENCY_CONFLICT`.
+4. Claim the key: `INSERT INTO command_idempotency … ON CONFLICT DO NOTHING`.
+5. `SELECT … FROM accounts WHERE id = ANY($1) ORDER BY id FOR SHARE`, then load the accounts. A concurrent deactivation waits for this transaction.
+6. The domain's `Journal.Post` checks:
+   - the status is `APPROVED` (`JOURNAL_ALREADY_POSTED` if already posted);
+   - the journal is balanced;
+   - every account exists, is active, and is in the same ledger and currency.
+
+   The command then requires the journal's `APPROVED` evidence.
+7. `UPDATE journals SET status = 'POSTED', posted_at, posted_by`, plus the `JournalPosted` outbox event naming the decision. The trigger:
+   - re-validates the transition, the balance and account activity;
+   - requires the claim and the `APPROVED` evidence;
+   - writes the audit row, including the key and the decision id.
+8. Commit. Deferred checks bind the claim and the event to the posting. Any exception before commit rolls back everything, including the claim and the audit row, so the key can be retried.
 
 Posting twice can't create two financial events: posting is a single state transition, and a `POSTED` row can't change.
 
@@ -117,6 +129,7 @@ Posting twice can't create two financial events: posting is a single state trans
 | Deactivating an account during a post | The posting takes `FOR SHARE` on accounts; the deactivation's row update waits. | `PostingTests.DeactivationWaitsForInFlightPosting` |
 | Adding an entry while the journal is being submitted or posted | Every journal command locks the journal row first; the entry trigger takes `FOR SHARE` on the journal and re-checks `DRAFT`. | trigger design (`journal_entries_guard`) |
 | N concurrent reversals of one journal | `FOR UPDATE` on the original plus an existence check; backstop: the partial unique index `ux_journals_live_reversal`. | `ReversalTests.ConcurrentReversalRequestsCreateExactlyOneReversal` (8 connections) |
+| N concurrent idempotent requests (same or different keys, posting or reversal) | See [posting-idempotency.md](posting-idempotency.md#concurrency): identical requests replay; one key on two journals is decided by the claim's primary key. | `PostingIdempotencyTests`, `ReversalIdempotencyTests` |
 
 Tests synchronise on events (task gates, a commit-pausing EF interceptor, polling `pg_locks` for a waiter). They don't use fixed sleeps.
 
@@ -164,6 +177,8 @@ There is no balance table. Balances are derived from `POSTED` entries only. `Led
 - net movements sum to zero and match the expected balances;
 - a reversal returns the affected accounts to their pre-mistake movement.
 
+Since Milestone 4 the same checks are also a product feature: `GET /api/v1/ledgers/{ledgerId}/reconciliation` (`LedgerReconciliation`) computes them per currency in one read-only snapshot, and adds a check that every posted reversal exactly mirrors its original ([posting-idempotency.md](posting-idempotency.md#reconciliation)).
+
 ## HTTP API (Milestone 1)
 
 All journal commands require an `X-Actor-Id` header. It is **unverified and client-asserted** until authentication exists. Errors are RFC 9457 problem details with a stable `code`:
@@ -181,8 +196,9 @@ All journal commands require an `X-Actor-Id` header. It is **unverified and clie
 | `POST …/journals/{journalId}/entries` | Add an entry (draft only) |
 | `POST …/journals/{journalId}/submit` | `DRAFT → PENDING_APPROVAL`, then request a policy decision (Milestone 3) |
 | `POST …/journals/{journalId}/request-approval` | Retry the policy decision for a `PENDING_APPROVAL` journal (Milestone 3) |
-| `POST …/journals/{journalId}/post` | `APPROVED → POSTED` |
-| `POST …/journals/{journalId}/reverse` | Create the reversal (`PENDING_APPROVAL`) |
+| `POST …/journals/{journalId}/post` | `APPROVED → POSTED`; requires `Idempotency-Key` (Milestone 4) |
+| `POST …/journals/{journalId}/reverse` | Create the reversal (`PENDING_APPROVAL`); requires `Idempotency-Key` (Milestone 4) |
+| `GET /api/v1/ledgers/{ledgerId}/reconciliation` | Ledger reconciliation report from posted entries (Milestone 4) |
 
 ## Known limitations
 
@@ -190,5 +206,5 @@ All journal commands require an `X-Actor-Id` header. It is **unverified and clie
 - The schema owner or a superuser can bypass the triggers (see above).
 - Currency-specific precision is enforced in the domain, not in SQL (ADR-008).
 - There is no draft deletion, no entry removal from drafts, and no journal listing or search endpoint.
-- Idempotency covers journal *creation* (`externalReference`) and the posting transition itself. Idempotency keys on commands and the outbox are Milestone 4 and Milestone 3 scope.
+- Idempotency covers journal *creation* (`externalReference`), and `post` and `reverse` through `Idempotency-Key` (Milestone 4). `submit` and `request-approval` are idempotent by state and take no key.
 - `JsonStringEnumConverter` accepts enum names case-insensitively (`"asset"` is `ASSET`); output is always upper case.

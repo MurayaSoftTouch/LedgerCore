@@ -51,6 +51,13 @@ public sealed class PostgresFixture : IAsyncLifetime
 
     public NpgsqlConnection CreateOwnerConnection() => new(OwnerConnectionString);
 
+    /// <summary>
+    /// The cluster superuser on the ledger database. Only for tests that simulate data which bypassed
+    /// the guards (e.g. <c>session_replication_role = replica</c>); no service ever connects this way.
+    /// </summary>
+    public NpgsqlConnection CreateSuperuserConnection() =>
+        new(new NpgsqlConnectionStringBuilder(_container.GetConnectionString()) { Database = "ledger", Pooling = false }.ConnectionString);
+
     private static LedgerDbContext CreateContext(string connectionString, params IInterceptor[] interceptors)
     {
         var options = new DbContextOptionsBuilder<LedgerDbContext>();

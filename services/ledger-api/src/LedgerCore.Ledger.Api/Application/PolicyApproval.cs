@@ -60,6 +60,14 @@ internal sealed partial class PolicyApproval(
         }
 
         var decision = ((PolicyEvaluationResult.Decided)result).Decision;
+        if (decision.TransactionId != journalId)
+        {
+            // Evidence is bound to its journal: a decision about another transaction is never
+            // recorded, whatever the client layer let through.
+            LogForeignDecision(journalId, decision.TransactionId, decision.DecisionId);
+            return new ApprovalOutcome(journal, null, PolicyFailureKind.ContractViolation);
+        }
+
         return await ApplyAsync(ledgerId, journalId, decision, ct);
     }
 
@@ -156,6 +164,9 @@ internal sealed partial class PolicyApproval(
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Policy decision recorded for journal {JournalId}: transaction {PolicyTransactionId}, decision {PolicyDecisionId} ({PolicyVersion}) {Decision}")]
     private partial void LogDecisionRecorded(Guid journalId, Guid policyTransactionId, Guid policyDecisionId, string policyVersion, PolicyDecisionValue decision);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Policy decision {PolicyDecisionId} for transaction {PolicyTransactionId} was returned for journal {JournalId}; ignored")]
+    private partial void LogForeignDecision(Guid journalId, Guid policyTransactionId, Guid policyDecisionId);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Policy returned decision {ReceivedDecisionId} for journal {JournalId}, which already has decision {RecordedDecisionId}; ignored")]
     private partial void LogDecisionMismatch(Guid journalId, Guid recordedDecisionId, Guid receivedDecisionId);

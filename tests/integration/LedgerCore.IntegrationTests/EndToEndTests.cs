@@ -34,6 +34,27 @@ public sealed class EndToEndTests(Stack stack) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task PostingIsIdempotentAndNeedsNoPolicyServiceOnceApproved()
+    {
+        var s = await Scenario.CreateAsync(stack);
+        var journal = await s.DraftAsync("100.00");
+        Assert.Equal("APPROVED", (await Scenario.Expect(await s.CommandAsync(journal, "submit"), HttpStatusCode.OK))["status"]!.GetValue<string>());
+        var key = Guid.NewGuid().ToString();
+
+        // The approval evidence is already persisted: posting works with the policy service unreachable.
+        await stack.SetProxyAsync(new { enabled = false });
+        var posted = await s.CommandAsync(journal, "post", idempotencyKey: key);
+        var replayed = await s.CommandAsync(journal, "post", idempotencyKey: key);
+
+        Assert.Equal("POSTED", (await Scenario.Expect(posted, HttpStatusCode.OK))["status"]!.GetValue<string>());
+        Assert.Equal("true", Assert.Single(replayed.Headers.GetValues("Idempotency-Replayed")));
+        Assert.Equal(await posted.Content.ReadAsStringAsync(), await replayed.Content.ReadAsStringAsync());
+        Assert.Equal(1, await s.ScalarAsync<long>("ledger", "SELECT count(*) FROM outbox_events WHERE aggregate_id = $1 AND event_type = 'JournalPosted'", journal));
+        Assert.Equal(1, await s.TransitionsAsync(journal, "POSTED"));
+        Assert.Equal(key, await s.ScalarAsync<string>("ledger", "SELECT idempotency_key FROM journal_status_transitions WHERE journal_id = $1 AND to_status = 'POSTED'", journal));
+    }
+
+    [Fact]
     public async Task RejectedTransactionIsRejectedAndCannotPost()
     {
         var s = await Scenario.CreateAsync(stack);

@@ -21,4 +21,10 @@ internal sealed class JournalStatusTransition
     public DateTimeOffset OccurredAt { get; private set; }
 
     public string? Reason { get; private set; }
+
+    /// <summary>The recorded policy decision that authorized an APPROVED, REJECTED or POSTED transition.</summary>
+    public Guid? PolicyDecisionId { get; private set; }
+
+    /// <summary>The <c>Idempotency-Key</c> of the command that caused the transition, where there was one.</summary>
+    public string? IdempotencyKey { get; private set; }
 }

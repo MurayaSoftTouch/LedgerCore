@@ -56,12 +56,21 @@ internal sealed class Scenario
         return journal;
     }
 
-    public async Task<HttpResponseMessage> CommandAsync(Guid journal, string command, string? correlationId = null)
+    /// <summary>
+    /// Sends a journal command. <c>post</c> and <c>reverse</c> require an <c>Idempotency-Key</c>
+    /// (Milestone 4): a fresh one is sent unless <paramref name="idempotencyKey"/> is given.
+    /// </summary>
+    public async Task<HttpResponseMessage> CommandAsync(Guid journal, string command, string? correlationId = null, string? idempotencyKey = null)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, $"api/v1/ledgers/{Ledger}/journals/{journal}/{command}");
         if (correlationId is not null)
         {
             request.Headers.Add("X-Correlation-Id", correlationId);
+        }
+
+        if (idempotencyKey is not null || command is "post" or "reverse")
+        {
+            request.Headers.Add("Idempotency-Key", idempotencyKey ?? Guid.NewGuid().ToString());
         }
 
         return await _stack.Ledger.SendAsync(request);
