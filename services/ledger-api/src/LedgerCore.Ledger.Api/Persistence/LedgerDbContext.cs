@@ -21,6 +21,9 @@ internal sealed class LedgerDbContext(DbContextOptions<LedgerDbContext> options)
     /// <summary>Transactional outbox (ADR-014); written with the change it describes.</summary>
     public DbSet<OutboxEvent> OutboxEvents => Set<OutboxEvent>();
 
+    /// <summary>Idempotency claims for posting and reversal (ADR-015); written with the effect they protect.</summary>
+    public DbSet<CommandIdempotency> CommandIdempotency => Set<CommandIdempotency>();
+
     /// <summary>Written only by a database trigger; read-only to the application.</summary>
     public DbSet<JournalStatusTransition> JournalStatusTransitions => Set<JournalStatusTransition>();
 

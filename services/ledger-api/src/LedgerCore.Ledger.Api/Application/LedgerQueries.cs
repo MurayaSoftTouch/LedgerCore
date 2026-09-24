@@ -28,6 +28,10 @@ internal sealed class LedgerQueries(LedgerDbContext db)
         await db.Accounts.AsNoTracking().SingleOrDefaultAsync(a => a.Id == accountId && a.LedgerId == ledgerId, ct)
         ?? throw NotFound.Account(accountId);
 
+    /// <summary>The policy decision recorded as evidence for a journal, if any.</summary>
+    public Task<JournalPolicyDecision?> GetPolicyDecisionAsync(Guid journalId, CancellationToken ct) =>
+        db.JournalPolicyDecisions.AsNoTracking().SingleOrDefaultAsync(d => d.JournalId == journalId, ct);
+
     public async Task<JournalView> GetJournalAsync(Guid ledgerId, Guid journalId, CancellationToken ct)
     {
         var journal = await db.Journals.AsNoTracking().Include(j => j.Entries)

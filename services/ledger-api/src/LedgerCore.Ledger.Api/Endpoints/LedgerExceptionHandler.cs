@@ -22,6 +22,8 @@ internal sealed partial class LedgerExceptionHandler(IProblemDetailsService prob
         [DatabaseConstraints.AccountCodeUnique] = "ACCOUNT_CODE_TAKEN",
         [DatabaseConstraints.ExternalReferenceUnique] = "EXTERNAL_REFERENCE_TAKEN",
         [DatabaseConstraints.LiveReversalUnique] = "JOURNAL_ALREADY_REVERSED",
+        [DatabaseConstraints.PostingClaimUnique] = "JOURNAL_ALREADY_POSTED",
+        [DatabaseConstraints.IdempotencyKeyPrimaryKey] = "IDEMPOTENCY_CONFLICT",
     };
 
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)

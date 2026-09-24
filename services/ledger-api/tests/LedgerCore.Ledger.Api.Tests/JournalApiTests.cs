@@ -35,7 +35,7 @@ public sealed class JournalApiTests(PostgresFixture db) : IDisposable
             await api.AddEntryAsync(ledger, journal, rent, "DEBIT", "1"), HttpStatusCode.Conflict, "JOURNAL_INVALID_STATE");
 
         var reversalResponse = await ApiClient.ExpectAsync(
-            await api.Http.PostAsJsonAsync($"/api/v1/ledgers/{ledger}/journals/{journal}/reverse", new { description = "Wrong period" }),
+            await api.CommandAsync(ledger, journal, "reverse", body: new { description = "Wrong period" }),
             HttpStatusCode.Created);
         var reversal = reversalResponse["id"]!.GetValue<Guid>();
         Assert.Equal("PENDING_APPROVAL", reversalResponse["status"]!.GetValue<string>());

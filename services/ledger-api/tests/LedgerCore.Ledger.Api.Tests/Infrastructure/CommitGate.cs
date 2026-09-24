@@ -32,3 +32,54 @@ internal sealed class PausingCommitInterceptor : DbTransactionInterceptor
         return result;
     }
 }
+
+/// <summary>
+/// Fails the first command whose SQL contains <paramref name="sqlFragment"/>, before it reaches the
+/// server: a failure injected at one statement boundary inside a transaction.
+/// </summary>
+internal sealed class FailingCommandInterceptor(string sqlFragment) : DbCommandInterceptor
+{
+    private int _failed;
+
+    public bool Fired => _failed == 1;
+
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+        DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+    {
+        Check(command);
+        return ValueTask.FromResult(result);
+    }
+
+    public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+        DbCommand command, CommandEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+    {
+        Check(command);
+        return ValueTask.FromResult(result);
+    }
+
+    private void Check(DbCommand command)
+    {
+        if (command.CommandText.Contains(sqlFragment, StringComparison.Ordinal) && Interlocked.Exchange(ref _failed, 1) == 0)
+        {
+            throw new InvalidOperationException($"Injected failure at: {sqlFragment}");
+        }
+    }
+}
+
+internal static class Injected
+{
+    /// <summary>Asserts the action failed because of an injected failure (EF may wrap it in DbUpdateException).</summary>
+    public static async Task FailureAsync(Func<Task> action)
+    {
+        var error = await Assert.ThrowsAnyAsync<Exception>(action);
+        for (Exception? e = error; e is not null; e = e.InnerException)
+        {
+            if (e is InvalidOperationException && e.Message.StartsWith("Injected failure", StringComparison.Ordinal))
+            {
+                return;
+            }
+        }
+
+        Assert.Fail($"Expected an injected failure, got: {error}");
+    }
+}

@@ -88,11 +88,24 @@ internal sealed class LedgerScenario
     public Task SubmitAsync(Guid journalId) =>
         WithCommands(c => c.SubmitAsync(LedgerId, journalId, "submitter", default));
 
-    public Task<Journal> PostAsync(Guid journalId, params IInterceptor[] interceptors) =>
-        WithCommands(c => c.PostAsync(LedgerId, journalId, "poster", default), interceptors);
+    /// <summary>Posts with a fresh idempotency key.</summary>
+    public async Task<Journal> PostAsync(Guid journalId, params IInterceptor[] interceptors) =>
+        (await PostWithKeyAsync(journalId, NewKey(), interceptors)).Journal;
 
-    public Task<Journal> ReverseAsync(Guid journalId, params IInterceptor[] interceptors) =>
-        WithCommands(c => c.ReverseAsync(LedgerId, journalId, null, "reverser", default), interceptors);
+    public Task<CommandResult> PostWithKeyAsync(Guid journalId, string key, params IInterceptor[] interceptors) =>
+        PostWithKeyAsync(journalId, key, "poster", interceptors);
+
+    public Task<CommandResult> PostWithKeyAsync(Guid journalId, string key, string actor, params IInterceptor[] interceptors) =>
+        WithCommands(c => c.PostAsync(LedgerId, journalId, actor, IdempotencyKey.Parse(key), default), interceptors);
+
+    /// <summary>Reverses with a fresh idempotency key.</summary>
+    public async Task<Journal> ReverseAsync(Guid journalId, params IInterceptor[] interceptors) =>
+        (await ReverseWithKeyAsync(journalId, NewKey(), null, interceptors)).Journal;
+
+    public Task<CommandResult> ReverseWithKeyAsync(Guid journalId, string key, string? description = null, params IInterceptor[] interceptors) =>
+        WithCommands(c => c.ReverseAsync(LedgerId, journalId, description, "reverser", IdempotencyKey.Parse(key), default), interceptors);
+
+    public static string NewKey() => Guid.NewGuid().ToString();
 
     /// <summary>Stand-in policy service used by <see cref="ApproveAsync"/> and <see cref="RejectAsync"/>.</summary>
     public StubPolicyDecisionClient Policy { get; } = new();

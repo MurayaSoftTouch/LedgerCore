@@ -42,8 +42,26 @@ internal sealed class ApiClient(LedgerApiFactory factory, HttpClient http)
     public Task<HttpResponseMessage> AddEntryAsync(Guid ledgerId, Guid journalId, Guid accountId, string direction, object amount) =>
         Http.PostAsJsonAsync($"/api/v1/ledgers/{ledgerId}/journals/{journalId}/entries", new { accountId, direction, amount });
 
-    public Task<HttpResponseMessage> CommandAsync(Guid ledgerId, Guid journalId, string command) =>
-        Http.PostAsync(new Uri($"/api/v1/ledgers/{ledgerId}/journals/{journalId}/{command}", UriKind.Relative), null);
+    /// <summary>
+    /// Sends a journal command. <c>post</c> and <c>reverse</c> require an <c>Idempotency-Key</c>: a fresh
+    /// one is generated unless <paramref name="idempotencyKey"/> is given (pass "" to send none).
+    /// </summary>
+    public async Task<HttpResponseMessage> CommandAsync(Guid ledgerId, Guid journalId, string command, string? idempotencyKey = null, object? body = null)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/ledgers/{ledgerId}/journals/{journalId}/{command}");
+        if (body is not null)
+        {
+            request.Content = JsonContent.Create(body);
+        }
+
+        var key = idempotencyKey ?? (command is "post" or "reverse" ? Guid.NewGuid().ToString() : null);
+        if (!string.IsNullOrEmpty(key))
+        {
+            request.Headers.TryAddWithoutValidation("Idempotency-Key", key);
+        }
+
+        return await Http.SendAsync(request);
+    }
 
     public async Task<JsonNode> GetJournalAsync(Guid ledgerId, Guid journalId) =>
         await ExpectAsync(await Http.GetAsync(new Uri($"/api/v1/ledgers/{ledgerId}/journals/{journalId}", UriKind.Relative)), HttpStatusCode.OK);
