@@ -26,12 +26,12 @@ Ownership means accountability for a design and for reviewing changes to it. It 
 
 | # | Milestone | Planned primary | Supporting | Status |
 | --- | --- | --- | --- | --- |
-| 0 | Repository foundation | @MurayaSoftTouch (planned) → **@LMichy1 (actual)** | — | Complete locally |
-| 1 | Ledger domain foundation | @LMichy1 | — | Complete locally on `feat/m1-ledger-domain` (not pushed; awaiting review) |
-| 2 | Policy service | @MurayaSoftTouch | — | Complete locally on `feat/m2-policy-engine` (not pushed; awaiting review) |
-| 3 | Cross-service reliability | @Ngetich-86 | — | Implemented on `feat/m3-service-integration`; multi-service verification pending (storage-gated); not pushed |
-| 4 | Posting, reversal and idempotency | @LMichy1 | @Ngetich-86 | Implemented on `feat/m4-posting-hardening` (not pushed or reviewed) |
-| 5 | Reconciliation, observability and security | @Ngetich-86 | @MurayaSoftTouch | Implemented on `feat/m5-operational-hardening` (not pushed or reviewed) |
+| 0 | Repository foundation | @MurayaSoftTouch (planned) → **@LMichy1 (actual)** | — | Merged |
+| 1 | Ledger domain foundation | @LMichy1 | — | Merged ([#1](https://github.com/MurayaSoftTouch/LedgerCore/pull/1)) |
+| 2 | Policy service | @MurayaSoftTouch | — | Merged ([#2](https://github.com/MurayaSoftTouch/LedgerCore/pull/2)) |
+| 3 | Cross-service reliability | @Ngetich-86 | — | Merged ([#3](https://github.com/MurayaSoftTouch/LedgerCore/pull/3)) |
+| 4 | Posting, reversal and idempotency | @LMichy1 | @Ngetich-86 | Merged ([#4](https://github.com/MurayaSoftTouch/LedgerCore/pull/4)) |
+| 5 | Reconciliation, observability and security | @Ngetich-86 | @MurayaSoftTouch | Merged ([#5](https://github.com/MurayaSoftTouch/LedgerCore/pull/5)) |
 | 6 | Final release | all | — | Planned |
 
 **Record of deviation.** The plan assigned Milestone 0 to MurayaSoftTouch, but LMichy1 did the work. Commits are authored as LMichy1 so that history reflects who actually did it. Because Milestone 0 touches every owner's area, each owner should review their own paths before it merges: @MurayaSoftTouch for `services/policy-service/`, @Ngetich-86 for `contracts/`, `infra/` and `.github/`.
